@@ -6,7 +6,7 @@ export const maxDuration = 120;
 
 export async function POST(request) {
   try {
-    const rate = checkRateLimit(clientKey(request, "scan"), { limit: 5, windowMs: 60 * 60 * 1000 });
+    const rate = checkRateLimit(clientKey(request, "scan"), { limit: 15, windowMs: 60 * 60 * 1000 });
     if (!rate.allowed) {
       return Response.json(
         { error: "Scan limit reached. Please try again later." },

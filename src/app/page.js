@@ -49,6 +49,22 @@ const platformInitials = {
   "Microsoft Copilot": "CP",
 };
 
+const publicLinks = [
+  ["About", "/about"],
+  ["FAQ", "/faq"],
+  ["Pricing", "/pricing"],
+  ["Contact", "/contact"],
+  ["Resources", "/resources"],
+  ["Case Studies", "/case-studies"],
+  ["Testimonials", "/testimonials"],
+  ["Glossary", "/glossary"],
+  ["Documentation", "/documentation"],
+  ["Blog", "/blog"],
+  ["Comparison Pages", "/comparison-pages"],
+  ["Privacy", "/privacy"],
+  ["Terms", "/terms"],
+];
+
 function validateUrl(value) {
   try {
     const candidate = /^https?:\/\//i.test(value) ? value : `https://${value}`;
@@ -502,6 +518,14 @@ export default function Home() {
           <Image src="/logo.png" alt="AI Readiness Logo" width={210} height={64} className="mx-auto h-12 w-auto sm:h-14" priority />
         </motion.div>
 
+        <nav className="relative z-10 mx-auto mb-7 flex max-w-4xl flex-wrap items-center justify-center gap-2 text-xs text-[#c7d0c6]" aria-label="Primary pages">
+          {publicLinks.slice(0, 8).map(([label, href]) => (
+            <a key={href} href={href} className="rounded-full border border-[#8B9C8C]/15 bg-white/[0.03] px-3 py-1.5 transition hover:border-[#8B9C8C]/35 hover:text-white">
+              {label}
+            </a>
+          ))}
+        </nav>
+
         <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7 }} className="relative z-10 mx-auto max-w-5xl text-center">
           <div className="mb-7 inline-flex items-center gap-3 rounded-full border border-[#8B9C8C]/20 bg-black/35 px-5 py-3 text-sm text-[#d9e1d8] shadow-2xl shadow-black/30 backdrop-blur-xl">
             <span className="grid size-6 place-items-center rounded-full border border-[#8B9C8C]/25 bg-[#8B9C8C]/10 text-[#90ee9a]">
@@ -555,6 +579,7 @@ export default function Home() {
           transition={{ delay: 0.28, duration: 0.7 }}
           className={`${styles.featureGrid} relative z-10 mx-auto mt-12 w-full`}
         >
+          <h2 className={styles.featureHeading}>What the AI readiness audit checks</h2>
           {features.map(([icon, title, copy]) => (
             <article
               key={title}
@@ -569,12 +594,97 @@ export default function Home() {
           ))}
         </motion.div>
 
+         <div id="report">{report && <Dashboard report={report} onReset={() => setReport(null)} />}</div>
+
+        <section className={`${styles.aiContent} relative z-10 mx-auto mt-12 w-full`} aria-labelledby="ai-friendly-overview">
+          <div>
+            <p className="text-sm uppercase tracking-[0.26em] text-[#8B9C8C]">AI-friendly website audit</p>
+            <h2 id="ai-friendly-overview" className={`${styles.heroTitle} mt-3 text-3xl font-semibold text-white sm:text-4xl`}>
+              Built so answer engines can understand the product, provider and purpose.
+            </h2>
+            <p className="mt-4 text-sm leading-7 text-[#d9e1d8]/82">
+              AI Website Readiness Checker is a SaaS web application by Rebrand Gurus for website owners, marketers, founders and agencies that need an AI search audit beyond traditional SEO. The scanner reviews live technical signals including robots.txt, sitemap.xml, metadata, JSON-LD schema, headings, image accessibility, internal links, readable content, trust pages, entity details and performance. It then produces platform-specific readiness estimates for ChatGPT, Claude, Gemini, Perplexity, Google AI Overview and Microsoft Copilot.
+            </p>
+            <p className="mt-3 text-sm leading-7 text-[#d9e1d8]/82">
+              The report is calculated from observed page data. It does not use random scores. Each recommendation explains the current status, why AI systems care, and how to improve crawlability, retrieval quality, entity confidence and answer-engine visibility.
+            </p>
+          </div>
+
+          <div className={styles.definitionPanel}>
+            <h3 className="text-xl font-semibold text-white">Key definitions</h3>
+            <dl className="mt-4 grid gap-4 text-sm leading-6 text-[#d9e1d8]/82">
+              <div>
+                <dt className="font-semibold text-[#9fe0a8]">AI readiness</dt>
+                <dd>AI readiness means a website is technically crawlable, semantically clear, entity-rich and trustworthy enough for LLMs and answer engines to interpret with confidence.</dd>
+              </div>
+              <div>
+                <dt className="font-semibold text-[#9fe0a8]">Entity recognition</dt>
+                <dd>Entity recognition refers to the extraction of a company name, brand, founder, services, contact details, locations and social profiles from visible content and structured data.</dd>
+              </div>
+              <div>
+                <dt className="font-semibold text-[#9fe0a8]">EEAT signals</dt>
+                <dd>EEAT signals are trust markers such as About, Contact, Privacy, Terms, author ownership, editorial policy, email, social profiles and clear provider information.</dd>
+              </div>
+            </dl>
+          </div>
+
+          <div className={styles.signalTableWrap}>
+            <table className={styles.signalTable}>
+              <caption>AI readiness signals measured by the scanner</caption>
+              <thead>
+                <tr>
+                  <th>Signal</th>
+                  <th>Why AI cares</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Organization and Service schema</td>
+                  <td>Helps LLMs connect the product, provider and business category.</td>
+                </tr>
+                <tr>
+                  <td>FAQ and definitions</td>
+                  <td>Creates answer-ready passages for conversational AI retrieval.</td>
+                </tr>
+                <tr>
+                  <td>Robots and sitemap access</td>
+                  <td>Confirms important crawlers can discover public URLs.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div className={styles.faqPanel} id="faq-preview">
+            <h3 className="text-xl font-semibold text-white">Frequently asked questions</h3>
+            <details open>
+              <summary>Is this tool focused on traditional SEO?</summary>
+              <p>No. The audit is focused on AI search visibility, answer-engine clarity, LLM crawlability, schema coverage, entity recognition and trust signals.</p>
+            </details>
+            <details>
+              <summary>Who provides the AI Website Readiness Checker?</summary>
+              <p>AI Website Readiness Checker is provided by Rebrand Gurus. Founder and SaaS Architect Md Sohail can be reached at sohail@rebrandgurus.com for an AI readiness consultation.</p>
+            </details>
+            <details>
+              <summary>Can I receive a complete report by email?</summary>
+              <p>Yes. After a live scan, enter your email to receive the full AI readiness report and request a strategy call.</p>
+            </details>
+          </div>
+        </section>
+
         <HeroCtaBand />
+
+        <footer className="relative z-10 mx-auto mt-8 flex max-w-5xl flex-wrap items-center justify-center gap-x-4 gap-y-2 px-4 pb-4 text-xs text-[#8B9C8C]">
+          <span>Rebrand Gurus</span>
+          <a href="mailto:sohail@rebrandgurus.com" className="text-[#d9e1d8] hover:text-white">sohail@rebrandgurus.com</a>
+          {publicLinks.map(([label, href]) => (
+            <a key={href} href={href} className="hover:text-white">{label}</a>
+          ))}
+        </footer>
 
         <AnimatePresence>{isScanning && <LoadingScan step={step} />}</AnimatePresence>
       </section>
 
-      <div id="report">{report && <Dashboard report={report} onReset={() => setReport(null)} />}</div>
+     
     </main>
   );
 }

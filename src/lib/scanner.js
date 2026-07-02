@@ -358,17 +358,38 @@ async function analyzeSitemap(baseUrl) {
   }
 }
 
-async function runLighthouse(url) {
+function estimatePerformanceFromResponse(response) {
+  const responseTimeMs = response.durationMs || 0;
+  const htmlBytes = Buffer.byteLength(String(response.data || ""), "utf8");
+  const transferBytes = Number(response.headers?.["content-length"] || htmlBytes);
+  const compressed = Boolean(response.headers?.["content-encoding"]);
+  const statusOk = response.status >= 200 && response.status < 400;
+
+  const timingScore = responseTimeMs <= 800 ? 40 : responseTimeMs <= 1500 ? 30 : responseTimeMs <= 2500 ? 20 : 10;
+  const sizeScore = htmlBytes <= 180000 ? 28 : htmlBytes <= 350000 ? 22 : htmlBytes <= 700000 ? 14 : 7;
+  const transferScore = transferBytes <= 250000 ? 16 : transferBytes <= 600000 ? 11 : 6;
+  const compressionScore = compressed || htmlBytes <= 120000 ? 10 : 5;
+  const statusScore = statusOk ? 6 : 0;
+
+  const score = clampScore(timingScore + sizeScore + transferScore + compressionScore + statusScore);
+  return {
+    score,
+    performance: score,
+    accessibility: 80,
+    seo: 90,
+    bestPractices: statusOk ? 88 : 60,
+    skipped: true,
+    fallback: true,
+    responseTimeMs,
+    htmlBytes,
+    transferBytes,
+    error: "Lighthouse is disabled. Performance is estimated from real HTTP response timing and document weight.",
+  };
+}
+
+async function runLighthouse(url, initialResponse) {
   if (process.env.ENABLE_LIGHTHOUSE !== "true") {
-    return {
-      score: 0,
-      performance: 0,
-      accessibility: 0,
-      seo: 0,
-      bestPractices: 0,
-      skipped: true,
-      error: "Lighthouse is disabled in this deployment. Set ENABLE_LIGHTHOUSE=true to enable it.",
-    };
+    return estimatePerformanceFromResponse(initialResponse);
   }
 
   let browser;
@@ -572,7 +593,9 @@ export async function scanWebsite(inputUrl) {
   await assertPublicUrl(url);
   let response;
   try {
+    const startedAt = Date.now();
     response = await fetchText(url);
+    response.durationMs = Date.now() - startedAt;
   } catch (error) {
     throw new Error(error.code === "ECONNABORTED" ? "The website timed out while scanning." : `Unable to reach the website: ${error.message}`);
   }
@@ -592,7 +615,7 @@ export async function scanWebsite(inputUrl) {
   const content = analyzeContent($);
   const eeat = analyzeEeat($, finalUrl, content.text);
   const entities = extractEntities($, metadata, content.text);
-  const [robots, sitemap, performance] = await Promise.all([analyzeRobots(finalUrl), analyzeSitemap(finalUrl), runLighthouse(finalUrl)]);
+  const [robots, sitemap, performance] = await Promise.all([analyzeRobots(finalUrl), analyzeSitemap(finalUrl), runLighthouse(finalUrl, response)]);
   const scored = scoreAll({ metadata, schema, performance, content, eeat, entities, robots, sitemap, links, images });
   const recommendations = buildRecommendations({ metadata, schema, headings, images, links, content, eeat, robots, sitemap, performance, entities });
   const platformScores = calculatePlatformScores(scored.scores, schema, content, eeat, entities, robots);
