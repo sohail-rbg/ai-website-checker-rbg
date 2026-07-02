@@ -77,10 +77,13 @@ async function readApiResponse(response, fallbackMessage) {
   }
 
   if (!response.ok) {
+    const cleanMessage = text.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
     throw new Error(
       response.status === 504
         ? "The scan took too long on the live server. Please try a smaller site or try again."
-        : fallbackMessage
+        : response.status >= 500
+          ? "The scan service had a live server error. Please try again in a moment."
+          : cleanMessage || fallbackMessage
     );
   }
 
