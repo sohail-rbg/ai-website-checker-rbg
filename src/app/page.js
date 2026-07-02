@@ -65,6 +65,11 @@ const publicLinks = [
   ["Terms", "/terms"],
 ];
 
+function formatScoreLabel(key) {
+  if (key === "eeat") return "EEAT";
+  return String(key || "").replace(/^\w/, (char) => char.toUpperCase());
+}
+
 function validateUrl(value) {
   try {
     const candidate = /^https?:\/\//i.test(value) ? value : `https://${value}`;
@@ -218,10 +223,10 @@ function HeroCtaBand() {
 
 function Dashboard({ report, onReset }) {
   const breakdown = useMemo(
-    () => Object.entries(report.scoreBreakdown).map(([name, value]) => ({ name: name.replace(/^\w/, (c) => c.toUpperCase()), value })),
+    () => Object.entries(report.scoreBreakdown).map(([name, value]) => ({ name: formatScoreLabel(name), value })),
     [report]
   );
-  const radar = breakdown.filter((item) => ["Metadata", "Schema", "Content", "Eeat", "Entities", "Robots", "Performance"].includes(item.name));
+  const radar = breakdown.filter((item) => ["Metadata", "Schema", "Content", "EEAT", "Entities", "Robots", "Performance"].includes(item.name));
   const visibleRecommendations = report.recommendations.slice(0, 1);
   const hiddenCount = Math.max(report.recommendations.length - 1, 0);
 
@@ -301,7 +306,7 @@ function Dashboard({ report, onReset }) {
           {Object.entries(report.checklist).map(([key, value]) => (
             <div key={key} className={`${styles.softGlass} rounded-2xl p-4`}>
               <div className={`text-2xl ${value ? "text-emerald-300" : "text-rose-300"}`}>{value ? "✓" : "!"}</div>
-              <p className="mt-2 text-sm font-medium capitalize text-white">{key.replace(/([A-Z])/g, " $1")}</p>
+              <p className="mt-2 text-sm font-medium text-white">{formatScoreLabel(key)}</p>
             </div>
           ))}
         </div>

@@ -280,7 +280,7 @@ function analyzeContent($) {
   };
 }
 
-function analyzeEeat($, url, text) {
+function analyzeEEAT($, url, text) {
   const linksText = $("a").map((_, el) => `${$(el).text()} ${$(el).attr("href") || ""}`.toLowerCase()).get().join(" ");
   const pageText = `${linksText} ${text}`.toLowerCase();
   const checks = {
@@ -613,7 +613,7 @@ export async function scanWebsite(inputUrl) {
   const images = analyzeImages($);
   const links = await checkInternalLinks(analyzeLinks($, finalUrl));
   const content = analyzeContent($);
-  const eeat = analyzeEeat($, finalUrl, content.text);
+  const eeat = analyzeEEAT($, finalUrl, content.text);
   const entities = extractEntities($, metadata, content.text);
   const [robots, sitemap, performance] = await Promise.all([analyzeRobots(finalUrl), analyzeSitemap(finalUrl), runLighthouse(finalUrl, response)]);
   const scored = scoreAll({ metadata, schema, performance, content, eeat, entities, robots, sitemap, links, images });

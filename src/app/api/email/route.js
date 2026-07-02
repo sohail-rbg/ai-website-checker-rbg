@@ -33,6 +33,11 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
+function formatScoreLabel(key) {
+  if (key === "eeat") return "EEAT";
+  return String(key || "").replace(/^\w/, (char) => char.toUpperCase());
+}
+
 function buildReportEmail({ website, overallScore, grade, topImprovements, report, wantsCall, reportUrl }) {
   const platforms = Array.isArray(report?.platformScores) ? report.platformScores : [];
   const scoreBreakdown = report?.scoreBreakdown || {};
@@ -56,7 +61,7 @@ function buildReportEmail({ website, overallScore, grade, topImprovements, repor
     ...platforms.map((item) => `${item.platform}: ${item.score}% - ${item.status}`),
     "",
     "Score Breakdown:",
-    ...Object.entries(scoreBreakdown).map(([key, value]) => `${key}: ${value}/100`),
+    ...Object.entries(scoreBreakdown).map(([key, value]) => `${formatScoreLabel(key)}: ${value}/100`),
     "",
     "Detected Entities:",
     `Company: ${entities.companyName || "Not detected"}`,
@@ -126,7 +131,7 @@ function buildReportEmail({ website, overallScore, grade, topImprovements, repor
                   ${Object.entries(scoreBreakdown).map(([key, value]) => `
                     <div style="margin:0 0 12px">
                       <div style="display:flex;justify-content:space-between;margin-bottom:6px;color:#374151;font-size:13px">
-                        <strong style="text-transform:capitalize">${escapeHtml(key)}</strong>
+                        <strong>${escapeHtml(formatScoreLabel(key))}</strong>
                         <span>${value}/100</span>
                       </div>
                       <div style="height:9px;border-radius:999px;background:#dfe5dd;overflow:hidden">

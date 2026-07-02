@@ -17,6 +17,11 @@ function Field({ label, value }) {
   );
 }
 
+function formatScoreLabel(key) {
+  if (key === "eeat") return "EEAT";
+  return String(key || "").replace(/^\w/, (char) => char.toUpperCase());
+}
+
 export default async function ReportPage({ params }) {
   const { id } = await params;
   if (!mongoose.Types.ObjectId.isValid(id)) notFound();
@@ -71,7 +76,7 @@ export default async function ReportPage({ params }) {
         <div className={styles.bars}>
           {Object.entries(scoreBreakdown).map(([key, value]) => (
             <div key={key}>
-              <span>{key}</span>
+              <span>{formatScoreLabel(key)}</span>
               <div><i style={{ width: `${value}%` }} /></div>
               <strong>{value}</strong>
             </div>
