@@ -7,7 +7,7 @@
   --secondary: #8B9C8C;
   --third: #262a53;
   --primary-font: var(--font-space-grotesk), "Space Grotesk", sans-serif;
-  --heading-font: "Recoleta", Georgia, serif;
+  --heading-font: var(--font-space-grotesk), "Space Grotesk", sans-serif;
 }
 
 @theme inline {

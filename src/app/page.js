@@ -511,7 +511,7 @@ export default function Home() {
             </span>
             AI crawler, LLM and answer-engine readiness audit
           </div>
-          <h1 className={`${styles.heroTitle} mx-auto max-w-5xl text-[3.1rem] font-semibold leading-[0.95] tracking-tight text-white sm:text-7xl lg:text-8xl`}>
+          <h1 className={`${styles.heroTitle} mx-auto max-w-5xl text-[2.6rem] font-semibold leading-[0.95] tracking-tight text-white sm:text-5xl lg:text-7xl`}>
             Is Your Website
             <span className={styles.titleAccent}> Ready for AI?</span>
           </h1>
