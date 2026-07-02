@@ -66,6 +66,29 @@ function scoreColor(score) {
   return "text-rose-300";
 }
 
+async function readApiResponse(response, fallbackMessage) {
+  const contentType = response.headers.get("content-type") || "";
+  const text = await response.text();
+
+  if (contentType.includes("application/json")) {
+    try {
+      return JSON.parse(text);
+    } catch {
+      throw new Error(fallbackMessage);
+    }
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      response.status === 504
+        ? "The scan took too long on the live server. Please try a smaller site or try again."
+        : fallbackMessage
+    );
+  }
+
+  throw new Error(fallbackMessage);
+}
+
 function Section({ title, children, action }) {
   return (
     <section className="mx-auto w-full max-w-7xl px-5 py-8 sm:px-8">
@@ -355,7 +378,7 @@ function EmailCapture({ report, compact = false, title = "Want a detailed AI Rea
         report,
       }),
     });
-    const data = await response.json();
+    const data = await readApiResponse(response, "Could not send report. Please try again.");
     if (!response.ok) throw new Error(data.error || "Could not send report.");
     if (data.reportUrl) setReportUrl(data.reportUrl);
     toast.success(data.message);
@@ -414,7 +437,7 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: values.url }),
       });
-      const data = await response.json();
+      const data = await readApiResponse(response, "The live server returned an invalid scan response. Please try again.");
       if (!response.ok) throw new Error(data.error || "Scan failed.");
       setReport(data.report);
       setStep(scanSteps.length - 1);

@@ -9,8 +9,8 @@ import { assertPublicUrl } from "./security";
 const BOT_AGENTS = ["GPTBot", "ClaudeBot", "Googlebot", "Google-Extended", "PerplexityBot", "CCBot", "Amazonbot", "Applebot"];
 const SCHEMA_TYPES = ["Organization", "Person", "Article", "FAQPage", "Service", "Product", "Review", "LocalBusiness", "BreadcrumbList", "Recipe", "HowTo", "Event", "VideoObject", "JobPosting", "Course"];
 const USER_AGENT = "AIWebsiteReadinessChecker/1.0 (+https://example.com)";
-const REQUEST_TIMEOUT = 12000;
-const LIGHTHOUSE_TIMEOUT = 45000;
+const REQUEST_TIMEOUT = 6000;
+const LIGHTHOUSE_TIMEOUT = 18000;
 const MAX_REDIRECTS = 5;
 
 export function normalizeUrl(input) {
@@ -207,12 +207,22 @@ function analyzeLinks($, baseUrl) {
 }
 
 async function checkInternalLinks(links) {
-  const targets = unique(links.sampleInternal || []).slice(0, 10);
+  if (process.env.ENABLE_INTERNAL_LINK_CHECK !== "true") {
+    return {
+      ...links,
+      checkedInternalLinks: 0,
+      brokenInternal: 0,
+      brokenSamples: [],
+      skippedInternalLinkCheck: true,
+    };
+  }
+
+  const targets = unique(links.sampleInternal || []).slice(0, 5);
   const results = await Promise.allSettled(targets.map(async (url) => {
     try {
       await assertPublicUrl(url);
       const response = await axios.head(url, {
-        timeout: 7000,
+        timeout: 3000,
         maxRedirects: 0,
         validateStatus: () => true,
         headers: { "User-Agent": USER_AGENT, Accept: "*/*" },
@@ -349,6 +359,18 @@ async function analyzeSitemap(baseUrl) {
 }
 
 async function runLighthouse(url) {
+  if (process.env.ENABLE_LIGHTHOUSE !== "true") {
+    return {
+      score: 0,
+      performance: 0,
+      accessibility: 0,
+      seo: 0,
+      bestPractices: 0,
+      skipped: true,
+      error: "Lighthouse is disabled in this deployment. Set ENABLE_LIGHTHOUSE=true to enable it.",
+    };
+  }
+
   let browser;
   try {
     await assertPublicUrl(url);
