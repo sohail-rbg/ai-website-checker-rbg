@@ -117,6 +117,19 @@ function FeatureIcon({ type }) {
   return <svg {...common}><circle cx="12" cy="8" r="4" /><path d="M5 21a7 7 0 0 1 14 0" /></svg>;
 }
 
+function TrustIcon({ type }) {
+  const common = { width: 22, height: 22, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": true };
+  if (type === "bolt") return <svg {...common}><path d="M13 2 4 14h7l-1 8 9-12h-7z" /></svg>;
+  if (type === "shield") return <svg {...common}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="M12 8v4" /><path d="M12 16h.01" /></svg>;
+  return <svg {...common}><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></svg>;
+}
+
+const trustHighlights = [
+  ["bolt", "Quick Results", "Get actionable insights in minutes."],
+  ["shield", "Secure & Private", "We never store your data."],
+  ["lock", "No Signup Required", "Start your audit instantly without an account."],
+];
+
 function PlatformLogo({ platform }) {
   const logos = {
     ChatGPT: "/chatgpt.png",
@@ -585,6 +598,25 @@ export default function Home() {
             {isScanning ? "Analyzing..." : "Analyze Website"}
           </button>
         </motion.form>
+
+        <motion.div
+          initial={{ opacity: 0, y: 14 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.26, duration: 0.7 }}
+          className="relative z-10 mx-auto mt-9 grid w-full max-w-[780px] gap-5 text-left sm:grid-cols-3 sm:gap-0"
+        >
+          {trustHighlights.map(([icon, title, copy], index) => (
+            <div key={title} className={`flex items-start gap-4 px-2 sm:px-8 ${index > 0 ? "sm:border-l sm:border-[#8B9C8C]/18" : ""}`}>
+              <span className="grid size-11 shrink-0 place-items-center rounded-full border border-[#90ee9a]/20 bg-[#90ee9a]/10 text-[#90ee9a] shadow-[0_0_28px_rgba(144,238,154,.18)]">
+                <TrustIcon type={icon} />
+              </span>
+              <span>
+                <strong className="block text-sm font-semibold text-white">{title}</strong>
+                <span className="mt-1 block text-sm leading-6 text-[#d9e1d8]/72">{copy}</span>
+              </span>
+            </div>
+          ))}
+        </motion.div>
 
         <AnimatePresence>{isScanning && <LoadingScan step={step} />}</AnimatePresence>
       </section>
