@@ -32,12 +32,12 @@ const scanSteps = [
 ];
 
 const features = [
-  ["AI Readiness", "Platform-specific signals for answer engines and LLM crawlers."],
-  ["Technical Audit", "Robots, sitemap, HTTPS, metadata, links and renderability."],
-  ["Schema Detection", "JSON-LD and microdata detection for major schema types."],
-  ["Content Analysis", "Readability, page structure, FAQs, definitions and tables."],
-  ["AI Recommendations", "Prioritized fixes with effort, rationale and score gain."],
-  ["Entity Recognition", "Business, brand, contact, service and location extraction."],
+  ["robot", "AI Readiness", "Platform-specific signals for answer engines and LLM crawlers."],
+  ["code", "Technical Audit", "Robots, sitemap, HTTPS, metadata, links and renderability."],
+  ["database", "Schema Detection", "JSON-LD and microdata detection for major schema types."],
+  ["file", "Content Analysis", "Readability, page structure, FAQs, definitions and tables."],
+  ["bulb", "AI Recommendations", "Prioritized fixes with effort, rationale and score gain."],
+  ["user", "Entity Recognition", "Business, brand, contact, service and location extraction."],
 ];
 
 const platformInitials = {
@@ -105,6 +105,16 @@ function Card({ children, className = "" }) {
   return <div className={`${styles.glass} rounded-3xl p-5 ${className}`}>{children}</div>;
 }
 
+function FeatureIcon({ type }) {
+  const common = { width: 38, height: 38, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": true };
+  if (type === "robot") return <svg {...common}><rect x="5" y="8" width="14" height="10" rx="2" /><path d="M9 8V5h6v3" /><path d="M12 5V3" /><path d="M9 13h.01" /><path d="M15 13h.01" /><path d="M8 18v2" /><path d="M16 18v2" /><path d="M3 12h2" /><path d="M19 12h2" /></svg>;
+  if (type === "code") return <svg {...common}><path d="m8 8-4 4 4 4" /><path d="m16 8 4 4-4 4" /><path d="m14 4-4 16" /></svg>;
+  if (type === "database") return <svg {...common}><ellipse cx="12" cy="5" rx="7" ry="3" /><path d="M5 5v6c0 1.7 3.1 3 7 3s7-1.3 7-3V5" /><path d="M5 11v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6" /></svg>;
+  if (type === "file") return <svg {...common}><path d="M6 3h8l4 4v14H6z" /><path d="M14 3v5h5" /><path d="M9 13h6" /><path d="M9 17h4" /></svg>;
+  if (type === "bulb") return <svg {...common}><path d="M9 18h6" /><path d="M10 22h4" /><path d="M8.5 14.5a6 6 0 1 1 7 0c-.9.7-1.5 1.6-1.5 2.5h-4c0-.9-.6-1.8-1.5-2.5z" /><path d="M4 10h1" /><path d="M19 10h1" /><path d="M6.2 4.2l.7.7" /><path d="M17.1 4.9l.7-.7" /></svg>;
+  return <svg {...common}><circle cx="12" cy="8" r="4" /><path d="M5 21a7 7 0 0 1 14 0" /></svg>;
+}
+
 function CircularScore({ score, grade }) {
   return (
     <div className="flex items-center gap-6">
@@ -131,30 +141,61 @@ function CircularScore({ score, grade }) {
 }
 
 function LoadingScan({ step }) {
+  const progress = ((step + 1) / scanSteps.length) * 100;
   return (
-    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="mx-auto mt-10 max-w-3xl">
-      <Card>
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <p className="text-sm uppercase tracking-[0.25em] text-cyan-200">Live Scan</p>
-            <h3 className="mt-2 text-xl font-semibold text-white">{scanSteps[step]}</h3>
+    <motion.div
+      initial={{ opacity: 0, y: 24, scale: 0.98 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: 18, scale: 0.98 }}
+      transition={{ duration: 0.28 }}
+      className={styles.scanToast}
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#8B9C8C]">Scanning live</p>
+          <h3 className="mt-2 text-base font-semibold leading-6 text-white">{scanSteps[step]}</h3>
+        </div>
+        <div className={styles.scanSpinner} />
+      </div>
+      <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/10">
+        <motion.div
+          className={`${styles.progressLine} h-full rounded-full`}
+          animate={{ width: `${progress}%` }}
+        />
+      </div>
+      <div className="mt-4 grid gap-2">
+        {scanSteps.slice(Math.max(0, step - 2), step + 1).map((label, index, visible) => (
+          <div key={label} className={`flex items-center gap-2 rounded-xl px-3 py-2 text-xs ${index === visible.length - 1 ? "bg-[#8B9C8C]/12 text-[#d9e1d8]" : "text-[#8B9C8C]/70"}`}>
+            <span className="size-1.5 rounded-full bg-[#8B9C8C]" />
+            {label}
           </div>
-          <div className="size-12 animate-spin rounded-full border-2 border-cyan-200 border-t-transparent" />
+        ))}
+      </div>
+    </motion.div>
+  );
+}
+
+function HeroCtaBand() {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.38, duration: 0.7 }}
+      className={styles.heroBand}
+    >
+      <div className="flex items-center gap-5">
+        <div className={styles.bandIcon}>
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M12 3 5 6v5c0 4.4 2.9 8.5 7 10 4.1-1.5 7-5.6 7-10V6z" />
+            <path d="m9.5 12.5 2 2 4-5" />
+          </svg>
         </div>
-        <div className="mt-6 h-2 overflow-hidden rounded-full bg-white/10">
-          <motion.div
-            className={`${styles.progressLine} h-full rounded-full`}
-            animate={{ width: `${((step + 1) / scanSteps.length) * 100}%` }}
-          />
+        <div>
+          <h3 className="text-xl font-semibold text-[#9fe0a8]">Built for modern websites.</h3>
+          <p className="mt-1 text-sm text-[#d9e1d8]/85">Stay visible in AI answers. Build trust. Get ahead.</p>
         </div>
-        <div className="mt-5 grid gap-2 sm:grid-cols-2">
-          {scanSteps.map((label, index) => (
-            <div key={label} className={`rounded-2xl px-4 py-3 text-sm ${index <= step ? "bg-cyan-400/10 text-cyan-100" : "bg-white/5 text-slate-500"}`}>
-              {label}
-            </div>
-          ))}
-        </div>
-      </Card>
+      </div>
+      <div className={styles.bandWave} />
     </motion.div>
   );
 }
@@ -455,25 +496,31 @@ export default function Home() {
     <main className={styles.shell}>
       <Toaster position="top-right" toastOptions={{ style: { background: "#020617", color: "#fff", border: "1px solid rgba(255,255,255,.14)" } }} />
       <div className={`${styles.heroGrid} pointer-events-none absolute inset-0`} />
-      <section className="relative mx-auto flex min-h-[92vh] w-full max-w-7xl flex-col justify-center overflow-hidden px-5 pb-16 pt-28 sm:px-8 sm:pt-32">
+      <section className={`${styles.heroSection} relative mx-auto flex min-h-[92vh] w-full flex-col justify-center overflow-hidden px-5 pb-10 pt-24 sm:px-8 sm:pt-8`}>
         <div className={styles.heroAura} />
         <motion.div
           initial={{ opacity: 0, y: -12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.65 }}
-          className={`${styles.logoSlot} absolute left-1/2 top-8 z-10 -translate-x-1/2 text-center`}
+          className={`${styles.logoSlot} relative z-10 mx-auto mb-8 text-center`}
         >
-          <Image src="/logo.png" alt="AI Readiness Logo" width={260} height={72} className="mx-auto h-14 w-auto sm:h-16" priority />
+          <Image src="/logo.png" alt="AI Readiness Logo" width={210} height={64} className="mx-auto h-12 w-auto sm:h-14" priority />
         </motion.div>
 
         <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7 }} className="relative z-10 mx-auto max-w-5xl text-center">
-          <div className="mb-7 inline-flex items-center gap-3 rounded-full border border-[#8B9C8C]/20 bg-black/25 px-4 py-2 text-sm text-[#d9e1d8] shadow-2xl shadow-black/30 backdrop-blur-xl">
-            <span className="size-2 rounded-full bg-[#8B9C8C] shadow-[0_0_18px_rgba(139,156,140,.8)]" />
-            Live technical scan for AI answer engines
+          <div className="mb-7 inline-flex items-center gap-3 rounded-full border border-[#8B9C8C]/20 bg-black/35 px-5 py-3 text-sm text-[#d9e1d8] shadow-2xl shadow-black/30 backdrop-blur-xl">
+            <span className="grid size-6 place-items-center rounded-full border border-[#8B9C8C]/25 bg-[#8B9C8C]/10 text-[#90ee9a]">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M12 2v4" /><path d="M12 18v4" /><path d="m4.93 4.93 2.83 2.83" /><path d="m16.24 16.24 2.83 2.83" /><path d="M2 12h4" /><path d="M18 12h4" /><path d="m4.93 19.07 2.83-2.83" /><path d="m16.24 7.76 2.83-2.83" />
+              </svg>
+            </span>
+            AI crawler, LLM and answer-engine readiness audit
           </div>
           <h1 className={`${styles.heroTitle} mx-auto max-w-5xl text-5xl font-semibold leading-[0.95] tracking-tight text-white sm:text-7xl lg:text-8xl`}>
-            Is Your Website Ready for AI?
+            Is Your Website
+            <span className={styles.titleAccent}> Ready for AI?</span>
           </h1>
+          <div className={styles.titleRule} />
           <p className="mx-auto mt-7 max-w-3xl text-lg leading-8 text-[#c7d0c6] sm:text-xl">
             Analyze how ChatGPT, Claude, Gemini, Perplexity and other AI systems understand your website.
           </p>
@@ -484,17 +531,25 @@ export default function Home() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.15, duration: 0.7 }}
           onSubmit={handleSubmit(onSubmit)}
-          className={`${styles.glass} relative z-10 mx-auto mt-10 grid w-full max-w-4xl gap-3 rounded-[2rem] p-3 sm:grid-cols-[1fr_auto]`}
+          className={`${styles.heroSearch} relative z-10 mx-auto mt-10 grid w-full gap-3 p-3 sm:grid-cols-[1fr_auto]`}
         >
-          <div>
+          <div className="relative">
+            <span className="pointer-events-none absolute left-6 top-1/2 -translate-y-1/2 text-[#90ee9a]">
+              <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="10" /><path d="M2 12h20" /><path d="M12 2a15.3 15.3 0 0 1 0 20" /><path d="M12 2a15.3 15.3 0 0 0 0 20" />
+              </svg>
+            </span>
             <input
               {...register("url", { required: "Website URL is required", validate: validateUrl })}
               placeholder="https://example.com"
-              className="h-16 w-full rounded-3xl border border-[#8B9C8C]/20 bg-black/30 px-6 text-lg text-white outline-none placeholder:text-[#8B9C8C]/60 focus:border-[#8B9C8C]"
+              className="h-16 w-full rounded-3xl border border-transparent bg-transparent py-0 pl-20 pr-6 text-lg text-white outline-none placeholder:text-white/34"
             />
             {errors.url && <p className="px-4 pt-2 text-sm text-rose-300">{errors.url.message}</p>}
           </div>
-          <button disabled={isScanning} className="h-16 rounded-3xl bg-[#8B9C8C] px-8 text-base font-semibold text-[#020302] transition hover:bg-[#aab7ab] disabled:cursor-wait disabled:opacity-70">
+          <button disabled={isScanning} className="flex h-16 items-center justify-center gap-3 rounded-2xl bg-[#98d8a1] px-8 text-base font-semibold text-[#020302] shadow-[0_0_34px_rgba(152,216,161,.28)] transition hover:bg-[#aaf0b3] disabled:cursor-wait disabled:opacity-70">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M5 12h14" /><path d="m13 6 6 6-6 6" />
+            </svg>
             {isScanning ? "Analyzing..." : "Analyze Website"}
           </button>
         </motion.form>
@@ -503,20 +558,23 @@ export default function Home() {
           initial={{ opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.28, duration: 0.7 }}
-          className={`${styles.featureRail} relative z-10 mx-auto mt-12 w-full max-w-6xl px-2 py-5`}
+          className={`${styles.featureGrid} relative z-10 mx-auto mt-12 w-full`}
         >
-          <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-4 text-center">
-          {features.map(([title, copy], index) => (
-            <div
+          {features.map(([icon, title, copy]) => (
+            <article
               key={title}
-              className={`${styles.featureItem} max-w-[12rem]`}
+              className={styles.featureCard}
             >
-              <p className="text-sm font-semibold text-white">{title}</p>
-              <p className="mt-1 text-xs leading-5 text-[#aeb9ad]">{copy}</p>
-            </div>
+              <div className={styles.featureIcon}><FeatureIcon type={icon} /></div>
+              <div>
+                <h3 className="text-lg font-semibold text-white">{title}</h3>
+                <p className="mt-2 text-sm leading-6 text-[#d9e1d8]/78">{copy}</p>
+              </div>
+            </article>
           ))}
-          </div>
         </motion.div>
+
+        <HeroCtaBand />
 
         <AnimatePresence>{isScanning && <LoadingScan step={step} />}</AnimatePresence>
       </section>
