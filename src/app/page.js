@@ -471,25 +471,33 @@ function EmailCapture({ report, compact = false, title = "Want a detailed AI Rea
   const { register, handleSubmit, formState: { errors, isSubmitting }, reset } = useForm();
 
   async function onSubmit(values) {
-    const response = await fetch("/api/email", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        email: values.email,
-        website: report.finalUrl,
-        overallScore: report.overallScore,
-        grade: report.grade,
-        topImprovements: report.recommendations.slice(0, 5).map((item) => item.title),
-        platformScores: Object.fromEntries(report.platformScores.map((item) => [item.platform, item.score])),
-        wantsCall: Boolean(values.wantsCall),
-        report,
-      }),
-    });
-    const data = await readApiResponse(response, "Could not send report. Please try again.");
-    if (!response.ok) throw new Error(data.error || "Could not send report.");
-    if (data.reportUrl) setReportUrl(data.reportUrl);
-    toast.success(data.message);
-    reset();
+    try {
+      const response = await fetch("/api/email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: values.email,
+          website: report.finalUrl,
+          overallScore: report.overallScore,
+          grade: report.grade,
+          topImprovements: report.recommendations.slice(0, 5).map((item) => item.title),
+          platformScores: Object.fromEntries(report.platformScores.map((item) => [item.platform, item.score])),
+          wantsCall: Boolean(values.wantsCall),
+          report,
+        }),
+      });
+      const data = await readApiResponse(response, "Could not send report. Please try again.");
+      if (!response.ok) throw new Error(data.error || "Could not send report.");
+      if (data.reportUrl) setReportUrl(data.reportUrl);
+      if (data.emailSent === false) {
+        toast.error(data.message || "Lead saved, but email delivery needs SMTP configuration.");
+      } else {
+        toast.success(data.message || "Report confirmation sent.");
+      }
+      reset();
+    } catch (error) {
+      toast.error(error?.message || "Could not save this lead right now.");
+    }
   }
 
   const form = (

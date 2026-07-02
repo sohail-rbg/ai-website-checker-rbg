@@ -9,6 +9,12 @@ const LeadSchema = new mongoose.Schema(
     submissionCount: { type: Number, default: 1 },
     lastSubmittedAt: { type: Date, default: Date.now },
     emailSent: { type: Boolean, default: false },
+    emailDelivery: {
+      userSent: { type: Boolean, default: false },
+      adminSent: { type: Boolean, default: false },
+      error: String,
+      lastAttemptAt: Date,
+    },
     summary: {
       grade: String,
       topImprovements: [String],

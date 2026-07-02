@@ -24,6 +24,16 @@ function createTransporter() {
   });
 }
 
+async function trySendMail(transporter, mailOptions, label) {
+  try {
+    await transporter.sendMail(mailOptions);
+    return { ok: true };
+  } catch (error) {
+    console.error(`Email delivery failed for ${label}`, error);
+    return { ok: false, error: error?.message || `Could not send ${label} email.` };
+  }
+}
+
 function escapeHtml(value) {
   return String(value || "")
     .replaceAll("&", "&amp;")
@@ -296,7 +306,20 @@ export async function POST(request) {
     const origin = request.headers.get("origin") || new URL(request.url).origin;
     const reportUrl = `${origin}/report/${lead._id}`;
 
-    const transporter = createTransporter();
+    let transporter = null;
+    try {
+      transporter = createTransporter();
+    } catch (error) {
+      console.error("SMTP transporter setup failed", error);
+    }
+
+    const delivery = {
+      userSent: false,
+      adminSent: false,
+      error: "",
+      lastAttemptAt: new Date(),
+    };
+
     if (transporter) {
       const emailReport = buildReportEmail({
         website,
@@ -307,13 +330,14 @@ export async function POST(request) {
         wantsCall: Boolean(body.wantsCall),
         reportUrl,
       });
-      await transporter.sendMail({
+      const userDelivery = await trySendMail(transporter, {
         from: process.env.SMTP_FROM?.trim(),
         to: email,
         subject: "Your AI Website Readiness Report",
         text: emailReport.text,
         html: emailReport.html,
-      });
+      }, "user report");
+      delivery.userSent = userDelivery.ok;
 
       const adminEmail = process.env.ADMIN_NOTIFY_EMAIL?.trim() || "sohail@rebrandgurus.com";
       const adminReport = buildAdminLeadEmail({
@@ -326,25 +350,35 @@ export async function POST(request) {
         leadId: String(lead._id),
         topImprovements,
       });
-      await transporter.sendMail({
+      const adminDelivery = await trySendMail(transporter, {
         from: process.env.SMTP_FROM?.trim(),
         to: adminEmail,
         subject: `New AI Website Checker Lead: ${website}`,
         text: adminReport.text,
         html: adminReport.html,
-      });
-      lead.emailSent = true;
-      await lead.save();
+      }, "admin notification");
+      delivery.adminSent = adminDelivery.ok;
+      delivery.error = [userDelivery.error, adminDelivery.error].filter(Boolean).join(" | ");
+    } else {
+      delivery.error = "SMTP is not configured. Add SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS and SMTP_FROM.";
     }
+
+    lead.emailSent = delivery.userSent && delivery.adminSent;
+    lead.emailDelivery = delivery;
+    await lead.save();
 
     return Response.json({
       ok: true,
       leadId: String(lead._id),
       reportUrl,
-      emailSent: Boolean(transporter),
-      message: transporter ? "Report confirmation sent." : "Lead saved. Configure SMTP settings to send email confirmations.",
+      emailSent: lead.emailSent,
+      delivery,
+      message: lead.emailSent
+        ? "Report confirmation sent."
+        : "Lead saved. Email delivery needs SMTP configuration.",
     });
   } catch (error) {
+    console.error("Lead capture failed", error);
     const missingMongo = /MONGODB_URI/.test(error.message || "");
     return Response.json(
       { error: missingMongo ? "MongoDB is not configured. Add MONGODB_URI to your environment." : "Could not save this lead right now." },
