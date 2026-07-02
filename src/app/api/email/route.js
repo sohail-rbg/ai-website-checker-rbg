@@ -21,12 +21,24 @@ function createTransporter() {
     port: Number(SMTP_PORT),
     secure: Number(SMTP_PORT) === 465,
     auth: { user: SMTP_USER, pass: SMTP_PASS },
+    connectionTimeout: 8000,
+    greetingTimeout: 8000,
+    socketTimeout: 10000,
+  });
+}
+
+function timeoutAfter(ms, message) {
+  return new Promise((_, reject) => {
+    setTimeout(() => reject(new Error(message)), ms);
   });
 }
 
 async function trySendMail(transporter, mailOptions, label) {
   try {
-    await transporter.sendMail(mailOptions);
+    await Promise.race([
+      transporter.sendMail(mailOptions),
+      timeoutAfter(12000, `${label} email timed out. Check SMTP settings.`),
+    ]);
     return { ok: true };
   } catch (error) {
     console.error(`Email delivery failed for ${label}`, error);
@@ -46,6 +58,37 @@ function escapeHtml(value) {
 function formatScoreLabel(key) {
   if (key === "eeat") return "EEAT";
   return String(key || "").replace(/^\w/, (char) => char.toUpperCase());
+}
+
+function sanitizeReportForStorage(report) {
+  if (!report || typeof report !== "object") return {};
+
+  const cleaned = {
+    scannedUrl: report.scannedUrl,
+    finalUrl: report.finalUrl,
+    scannedAt: report.scannedAt,
+    overallScore: report.overallScore,
+    grade: report.grade,
+    scoreBreakdown: report.scoreBreakdown || {},
+    platformScores: Array.isArray(report.platformScores) ? report.platformScores : [],
+    recommendations: Array.isArray(report.recommendations) ? report.recommendations.slice(0, 12) : [],
+    quickWins: Array.isArray(report.quickWins) ? report.quickWins.slice(0, 6) : [],
+    contentOpportunities: Array.isArray(report.contentOpportunities) ? report.contentOpportunities : [],
+    metadata: report.metadata || {},
+    schema: report.schema || {},
+    headings: report.headings || {},
+    images: report.images || {},
+    links: report.links ? { ...report.links, sampleInternal: Array.isArray(report.links.sampleInternal) ? report.links.sampleInternal.slice(0, 10) : [] } : {},
+    content: report.content ? { ...report.content, text: undefined } : {},
+    eeat: report.eeat || {},
+    performance: report.performance || {},
+    entities: report.entities || {},
+    robots: report.robots ? { ...report.robots, raw: undefined } : {},
+    sitemap: report.sitemap || {},
+    checklist: report.checklist || {},
+  };
+
+  return JSON.parse(JSON.stringify(cleaned));
 }
 
 function buildReportEmail({ website, overallScore, grade, topImprovements, report, wantsCall, reportUrl }) {
@@ -265,11 +308,20 @@ export async function POST(request) {
         { status: 429, headers: { "Retry-After": String(Math.ceil((rate.resetAt - Date.now()) / 1000)) } }
       );
     }
-    const body = await request.json();
+    let body;
+    try {
+      body = await request.json();
+    } catch (error) {
+      console.error("Email API request parsing failed", error);
+      return Response.json(
+        { error: "The report request is too large. Please run the scan again and submit the report." },
+        { status: 413 }
+      );
+    }
     const email = String(body.email || "").trim().toLowerCase();
     const website = String(body.website || "").trim();
     const overallScore = Number(body.overallScore);
-    const fullReport = body.report && typeof body.report === "object" ? body.report : {};
+    const fullReport = sanitizeReportForStorage(body.report);
     const topImprovements = Array.isArray(body.topImprovements)
       ? body.topImprovements.slice(0, 10)
       : Array.isArray(fullReport.recommendations)

@@ -435,6 +435,55 @@ function Info({ label, value }) {
   );
 }
 
+function compactReportForEmail(report) {
+  if (!report || typeof report !== "object") return {};
+
+  const {
+    content,
+    robots,
+    links,
+    recommendations,
+    quickWins,
+    contentOpportunities,
+    platformScores,
+    scoreBreakdown,
+    metadata,
+    schema,
+    headings,
+    images,
+    eeat,
+    performance,
+    entities,
+    sitemap,
+    checklist,
+  } = report;
+
+  return {
+    scannedUrl: report.scannedUrl,
+    finalUrl: report.finalUrl,
+    scannedAt: report.scannedAt,
+    overallScore: report.overallScore,
+    grade: report.grade,
+    scoreBreakdown,
+    platformScores: Array.isArray(platformScores) ? platformScores : [],
+    recommendations: Array.isArray(recommendations) ? recommendations.slice(0, 12) : [],
+    quickWins: Array.isArray(quickWins) ? quickWins.slice(0, 6) : [],
+    contentOpportunities: Array.isArray(contentOpportunities) ? contentOpportunities : [],
+    metadata,
+    schema,
+    headings,
+    images,
+    links: links ? { ...links, sampleInternal: Array.isArray(links.sampleInternal) ? links.sampleInternal.slice(0, 10) : [] } : links,
+    content: content ? { ...content, text: undefined } : content,
+    eeat,
+    performance,
+    entities,
+    robots: robots ? { ...robots, raw: undefined } : robots,
+    sitemap,
+    checklist,
+  };
+}
+
 function EmailCapture({ report, compact = false, title = "Want a detailed AI Readiness Report?", description }) {
   const [reportUrl, setReportUrl] = useState("");
   const { register, handleSubmit, formState: { errors, isSubmitting }, reset } = useForm();
@@ -452,7 +501,7 @@ function EmailCapture({ report, compact = false, title = "Want a detailed AI Rea
           topImprovements: report.recommendations.slice(0, 5).map((item) => item.title),
           platformScores: Object.fromEntries(report.platformScores.map((item) => [item.platform, item.score])),
           wantsCall: Boolean(values.wantsCall),
-          report,
+          report: compactReportForEmail(report),
         }),
       });
       const data = await readApiResponse(response, "Could not send report. Please try again.");
@@ -503,6 +552,7 @@ function EmailCapture({ report, compact = false, title = "Want a detailed AI Rea
 
   return <Section title={title}>{form}</Section>;
 }
+const aiEngines = ["ChatGPT", "Claude", "Gemini", "Perplexity", "Copilot", "Grok", "DeepSeek", "Mistral"];
 
 export default function Home() {
   const [isScanning, setIsScanning] = useState(false);
@@ -567,7 +617,9 @@ export default function Home() {
           </h1>
           <div className={styles.titleRule} />
           <p className="mx-auto mt-6 max-w-3xl text-base leading-7 text-[#c7d0c6] sm:mt-7 sm:text-xl sm:leading-8">
-            Analyze how ChatGPT, Claude, Gemini, Perplexity and other AI systems understand your website.
+           Analyze how <span className="text-white">ChatGPT</span>, <span className="text-white">Claude</span>,{" "}
+            <span className="text-white">Gemini</span> &amp; <span className="text-white">Perplexity</span> understand,
+            cite and recommend your website.
           </p>
         </motion.div>
 
@@ -576,9 +628,10 @@ export default function Home() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.15, duration: 0.7 }}
           onSubmit={handleSubmit(onSubmit)}
-          className="relative z-10 mx-auto mt-10 grid w-full max-w-[780px] gap-3 rounded-[24px] border border-white/15 bg-[#030604]/55 p-3 shadow-[0_22px_70px_rgba(0,0,0,0.48),inset_0_0_0_1px_rgba(139,156,140,0.06)] backdrop-blur-[22px] sm:grid-cols-[1fr_auto]"
+          className="relative glow-border z-10 mx-auto mt-10 grid w-full max-w-[780px] gap-3 rounded-[24px] border border-white/15 bg-[#030604]/55 p-3 shadow-[0_22px_70px_rgba(0,0,0,0.48),inset_0_0_0_1px_rgba(139,156,140,0.06)] backdrop-blur-[22px] sm:grid-cols-[1fr_auto]"
         >
           <div className="relative">
+            
             <span className="pointer-events-none absolute left-6 top-1/2 -translate-y-1/2 text-[#90ee9a]">
               <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <circle cx="12" cy="12" r="10" /><path d="M2 12h20" /><path d="M12 2a15.3 15.3 0 0 1 0 20" /><path d="M12 2a15.3 15.3 0 0 0 0 20" />
@@ -603,20 +656,44 @@ export default function Home() {
           initial={{ opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.26, duration: 0.7 }}
-          className="relative z-10 mx-auto mt-9 grid w-full max-w-[780px] gap-5 text-left sm:grid-cols-3 sm:gap-0"
+          className="relative z-10 mx-auto  mt-10 grid w-full max-w-[780px] gap-5 text-left sm:grid-cols-3 sm:gap-0"
         >
           {trustHighlights.map(([icon, title, copy], index) => (
-            <div key={title} className={`flex items-start gap-4 px-2 sm:px-8 ${index > 0 ? "sm:border-l sm:border-[#8B9C8C]/18" : ""}`}>
-              <span className="grid size-11 shrink-0 place-items-center rounded-full border border-[#90ee9a]/20 bg-[#90ee9a]/10 text-[#90ee9a] shadow-[0_0_28px_rgba(144,238,154,.18)]">
+            <div key={title} className={`flex items-center gap-2 px-2 sm:px-8`}>
+              <span className="grid size-11 shrink-0 place-items-center rounded-full border border-[#90ee9a]/20 bg-[#90ee9a]/10 text-[#90ee9a]">
                 <TrustIcon type={icon} />
               </span>
               <span>
-                <strong className="block text-sm font-semibold text-white">{title}</strong>
-                <span className="mt-1 block text-sm leading-6 text-[#d9e1d8]/72">{copy}</span>
+                <strong className="block text-sm font-semibold text-[#8B9C8C]/70">{title}</strong>
+                {/* <span className="mt-1 block text-sm leading-6 text-[#d9e1d8]/72">{copy}</span> */}
               </span>
             </div>
           ))}
         </motion.div>
+          <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.45, duration: 1 }}
+          className="relative z-10 mx-auto mt-14 w-full max-w-[860px]"
+        >
+          <p className="mb-5 text-center font-mono text-[11px] uppercase tracking-[0.32em] text-[#8B9C8C]/70">
+            Tested against every major answer engine
+          </p>
+          <div className="marquee-mask overflow-hidden">
+            <div className="marquee-track flex w-max items-center gap-3 pr-3">
+              {[...aiEngines, ...aiEngines].map((engine, i) => (
+                <span
+                  key={`${engine}-${i}`}
+                  className="flex items-center gap-2.5 whitespace-nowrap rounded-full border border-white/[0.07] bg-white/[0.025] px-5 py-2.5 text-sm font-medium text-[#c7d0c6]/70 backdrop-blur-sm"
+                >
+                  <span className="size-1.5 rounded-full bg-[#90ee9a]/70 shadow-[0_0_8px_rgba(144,238,154,0.8)]" />
+                  {engine}
+                </span>
+              ))}
+            </div>
+          </div>
+        </motion.div>
+
 
         <AnimatePresence>{isScanning && <LoadingScan step={step} />}</AnimatePresence>
       </section>

@@ -38,8 +38,8 @@
 
 .heroSection {
   max-width: 1300px;
+  padding: 180px 18px 50px;
 }
-
 .pageContainer {
   width: 100%;
   max-width: 1300px;
@@ -682,3 +682,5 @@
     height: 30px;
   }
 }
+
+
