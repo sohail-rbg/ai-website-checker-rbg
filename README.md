@@ -20,7 +20,7 @@ A Next.js SaaS MVP that analyzes whether a website is ready for AI search engine
 - Tailwind CSS
 - CSS Modules
 - MongoDB + Mongoose
-- Axios, Cheerio, Puppeteer, Lighthouse, robots-parser, xml2js, jsdom
+- Axios, Cheerio, Puppeteer, Lighthouse, robots-parser, xml2js
 - Nodemailer
 - Recharts
 - Framer Motion

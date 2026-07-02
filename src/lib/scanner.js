@@ -2,7 +2,6 @@ import axios from "axios";
 import * as cheerio from "cheerio";
 import robotsParser from "robots-parser";
 import { parseStringPromise } from "xml2js";
-import { JSDOM } from "jsdom";
 import { SCORE_WEIGHTS, clampScore, gradeFor, statusFor, weightedPoints } from "./scoring";
 import { assertPublicUrl } from "./security";
 
@@ -250,10 +249,9 @@ async function checkInternalLinks(links) {
 }
 
 function analyzeContent($) {
-  const dom = new JSDOM($.html());
-  const document = dom.window.document;
-  document.querySelectorAll("script,style,noscript,svg").forEach((node) => node.remove());
-  const bodyText = document.body?.textContent?.replace(/\s+/g, " ").trim() || "";
+  const readable = cheerio.load($.html());
+  readable("script,style,noscript,svg").remove();
+  const bodyText = readable("body").text().replace(/\s+/g, " ").trim();
   const paragraphs = $("p").map((_, el) => $(el).text().replace(/\s+/g, " ").trim()).get().filter(Boolean);
   const sentences = bodyText.split(/[.!?]+/).map((s) => s.trim()).filter((s) => s.split(/\s+/).length > 3);
   const words = bodyText.split(/\s+/).filter(Boolean);
