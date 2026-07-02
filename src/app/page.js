@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { useForm } from "react-hook-form";
@@ -117,70 +118,25 @@ function FeatureIcon({ type }) {
 }
 
 function PlatformLogo({ platform }) {
-  const common = {
-    width: 34,
-    height: 34,
-    viewBox: "0 0 34 34",
-    fill: "none",
-    "aria-hidden": true,
+  const logos = {
+    ChatGPT: "/chatgpt.png",
+    Claude: "/claude.png",
+    Gemini: "/gemini.png",
+    Perplexity: "/perplexity.png",
+    "Google AI Overview": "/google.png",
+    "Microsoft Copilot": "/copilot.png",
   };
 
-  if (platform === "ChatGPT") {
-    return (
-      <svg {...common}>
-        <circle cx="17" cy="17" r="16" fill="#0f2f28" />
-        <path d="M17 7.5 24.8 12v10L17 26.5 9.2 22V12z" stroke="#9fe0a8" strokeWidth="1.8" />
-        <path d="M17 7.5v19M9.2 12l15.6 10M24.8 12 9.2 22" stroke="#9fe0a8" strokeWidth="1.2" opacity=".75" />
-      </svg>
-    );
-  }
-
-  if (platform === "Claude") {
-    return (
-      <svg {...common}>
-        <circle cx="17" cy="17" r="16" fill="#2E241C" />
-        <path d="M17 7 25 25H9z" fill="#D8B08C" />
-        <path d="M17 11.5 21.3 23h-8.6z" fill="#020302" opacity=".38" />
-      </svg>
-    );
-  }
-
-  if (platform === "Gemini") {
-    return (
-      <svg {...common}>
-        <circle cx="17" cy="17" r="16" fill="#152041" />
-        <path d="M17 5c1.8 6.7 5.3 10.2 12 12-6.7 1.8-10.2 5.3-12 12-1.8-6.7-5.3-10.2-12-12 6.7-1.8 10.2-5.3 12-12z" fill="#8FB7FF" />
-      </svg>
-    );
-  }
-
-  if (platform === "Perplexity") {
-    return (
-      <svg {...common}>
-        <circle cx="17" cy="17" r="16" fill="#062E2E" />
-        <path d="M10 8h14v18H10zM10 17h14M17 8v18" stroke="#62D8D2" strokeWidth="2" />
-      </svg>
-    );
-  }
-
-  if (platform === "Google AI Overview") {
-    return (
-      <svg {...common}>
-        <circle cx="17" cy="17" r="16" fill="#101418" />
-        <path d="M17 6a11 11 0 1 0 10.4 14.6h-9.7v-6.2h16A16 16 0 1 1 29.2 6.8z" fill="#fff" opacity=".95" />
-        <path d="M29.2 6.8 24.7 11A10.9 10.9 0 0 0 17 8.1V2a16 16 0 0 1 12.2 4.8z" fill="#8B9C8C" />
-      </svg>
-    );
-  }
+  const src = logos[platform] || "/logo.png";
 
   return (
-    <svg {...common}>
-      <circle cx="17" cy="17" r="16" fill="#17213F" />
-      <path d="M7 9h9v9H7z" fill="#9fe0a8" />
-      <path d="M18 9h9v9h-9z" fill="#8B9C8C" />
-      <path d="M7 20h9v5H7z" fill="#67bfa5" />
-      <path d="M18 20h9v5h-9z" fill="#d9e1d8" />
-    </svg>
+    <Image
+      src={src}
+      alt={`${platform} logo`}
+      width={40}
+      height={40}
+      className="h-10 w-10 rounded-full object-contain"
+    />
   );
 }
 
