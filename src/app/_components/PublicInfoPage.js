@@ -1,10 +1,14 @@
 import Link from "next/link";
+import SiteFooter from "./SiteFooter";
+import SiteHeader from "./SiteHeader";
+import styles from "../page.module.css";
 
 export default function PublicInfoPage({ title, eyebrow, description, sections = [] }) {
   return (
     <main className="min-h-screen bg-[#020302] px-5 py-10 text-[#f5f7f4] sm:px-8">
-      <div className="mx-auto max-w-5xl">
-        <Link href="/" className="inline-flex rounded-full border border-[#8B9C8C]/20 px-4 py-2 text-sm text-[#d9e1d8] hover:border-[#8B9C8C]/45">
+      <div className={`${styles.pageContainer} mx-auto`}>
+        <SiteHeader className="mx-auto w-full" />
+        <Link href="/" className="mt-8 inline-flex rounded-full border border-[#8B9C8C]/20 px-4 py-2 text-sm text-[#d9e1d8] hover:border-[#8B9C8C]/45">
           Back to AI Website Readiness Checker
         </Link>
         <section className="py-14">
@@ -27,6 +31,7 @@ export default function PublicInfoPage({ title, eyebrow, description, sections =
             </section>
           ))}
         </div>
+        <SiteFooter className="mx-auto w-full pb-2" />
       </div>
     </main>
   );

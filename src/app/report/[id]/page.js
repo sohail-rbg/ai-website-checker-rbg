@@ -1,12 +1,18 @@
 import mongoose from "mongoose";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import SiteFooter from "@/app/_components/SiteFooter";
+import SiteHeader from "@/app/_components/SiteHeader";
 import { connectToDatabase } from "@/lib/db";
 import Lead from "@/models/Lead";
 import PrintButton from "./PrintButton";
 import styles from "./report.module.css";
 
 export const runtime = "nodejs";
+
+const REPORT_CACHE_TTL = 5 * 60 * 1000;
+const reportCache = globalThis.__aiReadinessReportCache || new Map();
+globalThis.__aiReadinessReportCache = reportCache;
 
 function Field({ label, value }) {
   return (
@@ -22,12 +28,26 @@ function formatScoreLabel(key) {
   return String(key || "").replace(/^\w/, (char) => char.toUpperCase());
 }
 
+async function getReportLead(id) {
+  const cached = reportCache.get(id);
+  if (cached && cached.expiresAt > Date.now()) return cached.lead;
+
+  await connectToDatabase();
+  const lead = await Lead.findById(id).lean();
+  if (lead) {
+    reportCache.set(id, {
+      lead,
+      expiresAt: Date.now() + REPORT_CACHE_TTL,
+    });
+  }
+  return lead;
+}
+
 export default async function ReportPage({ params }) {
   const { id } = await params;
   if (!mongoose.Types.ObjectId.isValid(id)) notFound();
 
-  await connectToDatabase();
-  const lead = await Lead.findById(id).lean();
+  const lead = await getReportLead(id);
   if (!lead) notFound();
 
   const report = lead.report || {};
@@ -37,6 +57,7 @@ export default async function ReportPage({ params }) {
 
   return (
     <main className={styles.page}>
+      <SiteHeader className="mx-auto mb-8 w-full" />
       <div className={styles.actions}>
         <Link className={styles.action} href="/">Run New Scan</Link>
         <PrintButton className={styles.action} />
@@ -103,6 +124,7 @@ export default async function ReportPage({ params }) {
           ))}
         </div>
       </section>
+      <SiteFooter className="mx-auto mt-10 w-full" />
     </main>
   );
 }

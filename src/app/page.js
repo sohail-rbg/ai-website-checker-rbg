@@ -1,7 +1,7 @@
 "use client";
 
-import Image from "next/image";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { useForm } from "react-hook-form";
 import toast, { Toaster } from "react-hot-toast";
@@ -18,6 +18,8 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import SiteHeader from "./_components/SiteHeader";
+import SiteFooter from "./_components/SiteFooter";
 import styles from "./page.module.css";
 
 const scanSteps = [
@@ -38,31 +40,6 @@ const features = [
   ["file", "Content Analysis", "Readability, page structure, FAQs, definitions and tables."],
   ["bulb", "AI Recommendations", "Prioritized fixes with effort, rationale and score gain."],
   ["user", "Entity Recognition", "Business, brand, contact, service and location extraction."],
-];
-
-const platformInitials = {
-  ChatGPT: "CG",
-  Claude: "CL",
-  Gemini: "GM",
-  Perplexity: "PX",
-  "Google AI Overview": "AI",
-  "Microsoft Copilot": "CP",
-};
-
-const publicLinks = [
-  ["About", "/about"],
-  ["FAQ", "/faq"],
-  ["Pricing", "/pricing"],
-  ["Contact", "/contact"],
-  ["Resources", "/resources"],
-  ["Case Studies", "/case-studies"],
-  ["Testimonials", "/testimonials"],
-  ["Glossary", "/glossary"],
-  ["Documentation", "/documentation"],
-  ["Blog", "/blog"],
-  ["Comparison Pages", "/comparison-pages"],
-  ["Privacy", "/privacy"],
-  ["Terms", "/terms"],
 ];
 
 function formatScoreLabel(key) {
@@ -112,7 +89,7 @@ async function readApiResponse(response, fallbackMessage) {
 
 function Section({ title, children, action }) {
   return (
-    <section className="mx-auto w-full max-w-7xl px-5 py-8 sm:px-8">
+    <section className={`${styles.pageContainer} mx-auto px-5 py-8 sm:px-8`}>
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <h2 className="text-2xl font-semibold tracking-tight text-white">{title}</h2>
         {action}
@@ -134,6 +111,74 @@ function FeatureIcon({ type }) {
   if (type === "file") return <svg {...common}><path d="M6 3h8l4 4v14H6z" /><path d="M14 3v5h5" /><path d="M9 13h6" /><path d="M9 17h4" /></svg>;
   if (type === "bulb") return <svg {...common}><path d="M9 18h6" /><path d="M10 22h4" /><path d="M8.5 14.5a6 6 0 1 1 7 0c-.9.7-1.5 1.6-1.5 2.5h-4c0-.9-.6-1.8-1.5-2.5z" /><path d="M4 10h1" /><path d="M19 10h1" /><path d="M6.2 4.2l.7.7" /><path d="M17.1 4.9l.7-.7" /></svg>;
   return <svg {...common}><circle cx="12" cy="8" r="4" /><path d="M5 21a7 7 0 0 1 14 0" /></svg>;
+}
+
+function PlatformLogo({ platform }) {
+  const common = {
+    width: 34,
+    height: 34,
+    viewBox: "0 0 34 34",
+    fill: "none",
+    "aria-hidden": true,
+  };
+
+  if (platform === "ChatGPT") {
+    return (
+      <svg {...common}>
+        <circle cx="17" cy="17" r="16" fill="#0f2f28" />
+        <path d="M17 7.5 24.8 12v10L17 26.5 9.2 22V12z" stroke="#9fe0a8" strokeWidth="1.8" />
+        <path d="M17 7.5v19M9.2 12l15.6 10M24.8 12 9.2 22" stroke="#9fe0a8" strokeWidth="1.2" opacity=".75" />
+      </svg>
+    );
+  }
+
+  if (platform === "Claude") {
+    return (
+      <svg {...common}>
+        <circle cx="17" cy="17" r="16" fill="#2E241C" />
+        <path d="M17 7 25 25H9z" fill="#D8B08C" />
+        <path d="M17 11.5 21.3 23h-8.6z" fill="#020302" opacity=".38" />
+      </svg>
+    );
+  }
+
+  if (platform === "Gemini") {
+    return (
+      <svg {...common}>
+        <circle cx="17" cy="17" r="16" fill="#152041" />
+        <path d="M17 5c1.8 6.7 5.3 10.2 12 12-6.7 1.8-10.2 5.3-12 12-1.8-6.7-5.3-10.2-12-12 6.7-1.8 10.2-5.3 12-12z" fill="#8FB7FF" />
+      </svg>
+    );
+  }
+
+  if (platform === "Perplexity") {
+    return (
+      <svg {...common}>
+        <circle cx="17" cy="17" r="16" fill="#062E2E" />
+        <path d="M10 8h14v18H10zM10 17h14M17 8v18" stroke="#62D8D2" strokeWidth="2" />
+      </svg>
+    );
+  }
+
+  if (platform === "Google AI Overview") {
+    return (
+      <svg {...common}>
+        <circle cx="17" cy="17" r="16" fill="#101418" />
+        <path d="M17 6a11 11 0 1 0 10.4 14.6h-9.7v-6.2h16A16 16 0 1 1 29.2 6.8z" fill="#fff" opacity=".95" />
+        <path d="M29.2 6.8 24.7 11A10.9 10.9 0 0 0 17 8.1V2a16 16 0 0 1 12.2 4.8z" fill="#8B9C8C" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg {...common}>
+      <circle cx="17" cy="17" r="16" fill="#17213F" />
+      <path d="M7 9h9v9H7z" fill="#9fe0a8" />
+      <path d="M18 9h9v9h-9z" fill="#8B9C8C" />
+      <path d="M7 20h9v5H7z" fill="#67bfa5" />
+      <path d="M18 20h9v5h-9z" fill="#d9e1d8" />
+    </svg>
+  );
 }
 
 function CircularScore({ score, grade }) {
@@ -221,7 +266,7 @@ function HeroCtaBand() {
   );
 }
 
-function Dashboard({ report, onReset }) {
+export function Dashboard({ report, onReset }) {
   const breakdown = useMemo(
     () => Object.entries(report.scoreBreakdown).map(([name, value]) => ({ name: formatScoreLabel(name), value })),
     [report]
@@ -252,7 +297,9 @@ function Dashboard({ report, onReset }) {
             <Card key={platform.platform}>
               <div className="flex items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
-                  <div className="grid size-11 place-items-center rounded-2xl bg-white text-sm font-bold text-slate-950">{platformInitials[platform.platform]}</div>
+                  <div className={styles.platformLogo}>
+                    <PlatformLogo platform={platform.platform} />
+                  </div>
                   <div>
                     <h3 className="font-semibold text-white">{platform.platform}</h3>
                     <p className="text-sm text-slate-400">{platform.status}</p>
@@ -478,14 +525,17 @@ function EmailCapture({ report, compact = false, title = "Want a detailed AI Rea
 }
 
 export default function Home() {
-  const [report, setReport] = useState(null);
   const [isScanning, setIsScanning] = useState(false);
   const [step, setStep] = useState(0);
+  const router = useRouter();
   const { register, handleSubmit, formState: { errors } } = useForm({ defaultValues: { url: "" } });
+
+  useEffect(() => {
+    router.prefetch("/scan-report");
+  }, [router]);
 
   async function onSubmit(values) {
     setIsScanning(true);
-    setReport(null);
     setStep(0);
     const timer = setInterval(() => setStep((current) => Math.min(current + 1, scanSteps.length - 1)), 1400);
     try {
@@ -496,10 +546,9 @@ export default function Home() {
       });
       const data = await readApiResponse(response, "The live server returned an invalid scan response. Please try again.");
       if (!response.ok) throw new Error(data.error || "Scan failed.");
-      setReport(data.report);
       setStep(scanSteps.length - 1);
-      toast.success("Website analysis complete.");
-      setTimeout(() => document.getElementById("report")?.scrollIntoView({ behavior: "smooth" }), 100);
+      sessionStorage.setItem("aiWebsiteReadinessReport", JSON.stringify(data.report));
+      router.replace("/scan-report");
     } catch (error) {
       toast.error(error.message);
     } finally {
@@ -513,23 +562,15 @@ export default function Home() {
       <Toaster position="top-right" toastOptions={{ style: { background: "#020617", color: "#fff", border: "1px solid rgba(255,255,255,.14)" } }} />
       <div className={`${styles.heroGrid} pointer-events-none absolute inset-0`} />
       <section className={`${styles.heroSection} relative mx-auto flex min-h-[92vh] w-full flex-col justify-center overflow-hidden px-5 pb-10 pt-24 sm:px-8 sm:pt-8`}>
-        <div className={styles.heroAura} />
+        
         <motion.div
           initial={{ opacity: 0, y: -12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.65 }}
-          className={`${styles.logoSlot} relative z-10 mx-auto mb-8 text-center`}
+          className="absolute left-0 right-0 top-6 z-20 px-5 sm:px-8"
         >
-          <Image src="/logo.png" alt="AI Readiness Logo" width={210} height={64} className="mx-auto h-12 w-auto sm:h-14" priority />
+          <SiteHeader className="mx-auto" />
         </motion.div>
-
-        <nav className="relative z-10 mx-auto mb-7 flex max-w-4xl flex-wrap items-center justify-center gap-2 text-xs text-[#c7d0c6]" aria-label="Primary pages">
-          {publicLinks.slice(0, 8).map(([label, href]) => (
-            <a key={href} href={href} className="rounded-full border border-[#8B9C8C]/15 bg-white/[0.03] px-3 py-1.5 transition hover:border-[#8B9C8C]/35 hover:text-white">
-              {label}
-            </a>
-          ))}
-        </nav>
 
         <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7 }} className="relative z-10 mx-auto max-w-5xl text-center">
           <div className="mb-7 inline-flex items-center gap-3 rounded-full border border-[#8B9C8C]/20 bg-black/35 px-5 py-3 text-sm text-[#d9e1d8] shadow-2xl shadow-black/30 backdrop-blur-xl">
@@ -555,7 +596,7 @@ export default function Home() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.15, duration: 0.7 }}
           onSubmit={handleSubmit(onSubmit)}
-          className={`${styles.heroSearch} relative z-10 mx-auto mt-10 grid w-full gap-3 p-3 sm:grid-cols-[1fr_auto]`}
+          className="relative z-10 mx-auto mt-10 grid w-full max-w-[780px] gap-3 rounded-[24px] border border-white/15 bg-[#030604]/55 p-3 shadow-[0_22px_70px_rgba(0,0,0,0.48),inset_0_0_0_1px_rgba(139,156,140,0.06)] backdrop-blur-[22px] sm:grid-cols-[1fr_auto]"
         >
           <div className="relative">
             <span className="pointer-events-none absolute left-6 top-1/2 -translate-y-1/2 text-[#90ee9a]">
@@ -578,11 +619,16 @@ export default function Home() {
           </button>
         </motion.form>
 
+        <AnimatePresence>{isScanning && <LoadingScan step={step} />}</AnimatePresence>
+      </section>
+
+      <section className={`${styles.pageContainer} relative z-10 mx-auto px-5 pb-10 sm:px-8`}>
         <motion.div
           initial={{ opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.28, duration: 0.7 }}
           className={`${styles.featureGrid} relative z-10 mx-auto mt-12 w-full`}
+          id="features"
         >
           <h2 className={styles.featureHeading}>What the AI readiness audit checks</h2>
           {features.map(([icon, title, copy]) => (
@@ -598,20 +644,24 @@ export default function Home() {
             </article>
           ))}
         </motion.div>
+      </section>
 
-         <div id="report">{report && <Dashboard report={report} onReset={() => setReport(null)} />}</div>
-
+      <section className={`${styles.pageContainer} relative z-10 mx-auto px-5 pb-10 sm:px-8`}>
         <section className={`${styles.aiContent} relative z-10 mx-auto mt-12 w-full`} aria-labelledby="ai-friendly-overview">
           <div>
             <p className="text-sm uppercase tracking-[0.26em] text-[#8B9C8C]">AI-friendly website audit</p>
             <h2 id="ai-friendly-overview" className={`${styles.heroTitle} mt-3 text-3xl font-semibold text-white sm:text-4xl`}>
-              Built so answer engines can understand the product, provider and purpose.
+              {`We Identify What's Holding Your Website Back From AI Search`}
             </h2>
             <p className="mt-4 text-sm leading-7 text-[#d9e1d8]/82">
-              AI Website Readiness Checker is a SaaS web application by Rebrand Gurus for website owners, marketers, founders and agencies that need an AI search audit beyond traditional SEO. The scanner reviews live technical signals including robots.txt, sitemap.xml, metadata, JSON-LD schema, headings, image accessibility, internal links, readable content, trust pages, entity details and performance. It then produces platform-specific readiness estimates for ChatGPT, Claude, Gemini, Perplexity, Google AI Overview and Microsoft Copilot.
+              {`Most websites don't get ignored by AI tools on purpose; they get skipped because of small things that go unnoticed. Maybe your business details aren't clear enough. Maybe AI tools aren't even allowed to visit certain pages. Maybe your content is written in a way that's hard for AI to pull answers from. These issues don't always show up when a person visits your site, but they matter a lot to AI tools deciding whether to trust and use your website.`}
             </p>
             <p className="mt-3 text-sm leading-7 text-[#d9e1d8]/82">
-              The report is calculated from observed page data. It does not use random scores. Each recommendation explains the current status, why AI systems care, and how to improve crawlability, retrieval quality, entity confidence and answer-engine visibility.
+              {`This tool goes through your website step by step and checks all the things that affect whether AI can read, understand and trust it. Once the check is done, you'll see a clear list of what's working, what's missing, and what's quietly holding your website back from showing up when people ask AI tools questions related to your business.`}
+            </p>
+            <p className="mt-3 text-sm leading-7 text-[#d9e1d8]/82">
+              {`You won't need any technical knowledge to understand the results. Every issue is explained in simple terms, along with why it matters and what you can do to fix it.
+`}
             </p>
           </div>
 
@@ -620,40 +670,41 @@ export default function Home() {
             <dl className="mt-4 grid gap-4 text-sm leading-6 text-[#d9e1d8]/82">
               <div>
                 <dt className="font-semibold text-[#9fe0a8]">AI readiness</dt>
-                <dd>AI readiness means a website is technically crawlable, semantically clear, entity-rich and trustworthy enough for LLMs and answer engines to interpret with confidence.</dd>
+                <dd>{`It means your website is easy for AI tools to read and understand. If your website is AI-ready, tools like ChatGPT or Gemini can pick it up and use it to answer someone's question.`}</dd>
               </div>
               <div>
-                <dt className="font-semibold text-[#9fe0a8]">Entity recognition</dt>
-                <dd>Entity recognition refers to the extraction of a company name, brand, founder, services, contact details, locations and social profiles from visible content and structured data.</dd>
+                <dt className="font-semibold text-[#9fe0a8]">Business recognition</dt>
+                <dd>{`This is about how clearly AI tools can figure out basic things about your business, like your name, what you do, who runs it, where you're located and how to contact you. The clearer this information is on your site, the easier it is for AI to recognize you.
+`}</dd>
               </div>
               <div>
-                <dt className="font-semibold text-[#9fe0a8]">EEAT signals</dt>
-                <dd>EEAT signals are trust markers such as About, Contact, Privacy, Terms, author ownership, editorial policy, email, social profiles and clear provider information.</dd>
+                <dt className="font-semibold text-[#9fe0a8]">Trust signals</dt>
+                <dd>{`These are the things that tell AI (and real visitors) that your business is genuine. Things like an About page, a Contact page, a Privacy Policy, and clear ownership of your content. Websites with strong trust signals are more likely to be picked as a source by AI tools.`}</dd>
               </div>
             </dl>
           </div>
 
           <div className={styles.signalTableWrap}>
             <table className={styles.signalTable}>
-              <caption>AI readiness signals measured by the scanner</caption>
+              <caption>Why AI Tools Care </caption>
               <thead>
                 <tr>
-                  <th>Signal</th>
-                  <th>Why AI cares</th>
+                  <th>What We Check</th>
+                  <th>Why It Matters</th>
                 </tr>
               </thead>
               <tbody>
                 <tr>
-                  <td>Organization and Service schema</td>
-                  <td>Helps LLMs connect the product, provider and business category.</td>
+                  <td>Clear business information on your site</td>
+                  <td>{`Helps AI tools understand what your business does and who it's for`}</td>
                 </tr>
                 <tr>
-                  <td>FAQ and definitions</td>
-                  <td>Creates answer-ready passages for conversational AI retrieval.</td>
+                  <td>{`Simple, clear answers to common questions`}</td>
+                  <td>{`Gives AI ready-made content it can use when answering someone's question`}</td>
                 </tr>
                 <tr>
-                  <td>Robots and sitemap access</td>
-                  <td>Confirms important crawlers can discover public URLs.</td>
+                  <td>{`Whether AI tools are allowed to visit your site`}</td>
+                  <td>{`Confirms AI tools can actually access and read your pages`}</td>
                 </tr>
               </tbody>
             </table>
@@ -662,31 +713,30 @@ export default function Home() {
           <div className={styles.faqPanel} id="faq-preview">
             <h3 className="text-xl font-semibold text-white">Frequently asked questions</h3>
             <details open>
-              <summary>Is this tool focused on traditional SEO?</summary>
-              <p>No. The audit is focused on AI search visibility, answer-engine clarity, LLM crawlability, schema coverage, entity recognition and trust signals.</p>
+              <summary>{`Is this the same as regular SEO?`}</summary>
+              <p>{`No. Regular SEO helps you rank higher on Google. This tool checks something different: whether AI tools like ChatGPT and Gemini can understand your website well enough to use it when answering someone's question.`}</p>
             </details>
             <details>
-              <summary>Who provides the AI Website Readiness Checker?</summary>
-              <p>AI Website Readiness Checker is provided by Rebrand Gurus. Founder and SaaS Architect Md Sohail can be reached at sohail@rebrandgurus.com for an AI readiness consultation.</p>
+              <summary>{`Can I get my results by email?`}</summary>
+              <p>{`Yes. Once your scan is complete, just enter your email, and you'll receive your full report, along with the option to book a call if you want help fixing anything.`}</p>
             </details>
             <details>
-              <summary>Can I receive a complete report by email?</summary>
-              <p>Yes. After a live scan, enter your email to receive the full AI readiness report and request a strategy call.</p>
+              <summary>{`What does it mean if AI tools can't read my website?`}</summary>
+              <p>{`It means AI tools may be skipping your website when answering questions, even if people can see and use your site normally. This usually happens because of missing information, unclear content, or technical settings blocking AI tools without you knowing.`}</p>
+            </details>
+            <details>
+              <summary>{`Is this only useful for big businesses?`}</summary>
+              <p>{`No. Any website owner, small business, freelancer or agency can use this to check if their site is ready for AI search and get simple steps to improve it.
+`}</p>
             </details>
           </div>
         </section>
+      </section>
 
+      <section className={`${styles.pageContainer} relative z-10 mx-auto px-5 pb-10 sm:px-8`}>
         <HeroCtaBand />
 
-        <footer className="relative z-10 mx-auto mt-8 flex max-w-5xl flex-wrap items-center justify-center gap-x-4 gap-y-2 px-4 pb-4 text-xs text-[#8B9C8C]">
-          <span>Rebrand Gurus</span>
-          <a href="mailto:sohail@rebrandgurus.com" className="text-[#d9e1d8] hover:text-white">sohail@rebrandgurus.com</a>
-          {publicLinks.map(([label, href]) => (
-            <a key={href} href={href} className="hover:text-white">{label}</a>
-          ))}
-        </footer>
-
-        <AnimatePresence>{isScanning && <LoadingScan step={step} />}</AnimatePresence>
+        <SiteFooter className="relative z-10 mx-auto mt-8 w-full" />
       </section>
 
      

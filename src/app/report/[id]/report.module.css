@@ -11,7 +11,7 @@
   justify-content: flex-end;
   gap: 12px;
   margin: 0 auto 24px;
-  max-width: 1080px;
+  max-width: 1300px;
 }
 
 .action {
@@ -27,7 +27,7 @@
 .hero,
 .section,
 .grid {
-  max-width: 1080px;
+  max-width: 1300px;
   margin: 0 auto 20px;
 }
 
