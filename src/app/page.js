@@ -61,7 +61,7 @@ function validateUrl(value) {
 
 function scoreColor(score) {
   if (score >= 80) return "text-emerald-300";
-  if (score >= 60) return "text-cyan-300";
+  if (score >= 60) return "text-[#8B9C8C]";
   if (score >= 45) return "text-amber-300";
   return "text-rose-300";
 }
@@ -130,7 +130,7 @@ function CircularScore({ score, grade }) {
         </div>
       </div>
       <div>
-        <p className="text-sm uppercase tracking-[0.3em] text-cyan-200">Overall Score</p>
+        <p className="text-sm uppercase tracking-[0.3em] text-[#8B9C8C]">Overall Score</p>
         <h2 className="mt-2 text-4xl font-semibold text-white">AI Website Readiness</h2>
         <p className="mt-3 max-w-xl text-sm leading-6 text-slate-300">
           Calculated from live technical signals, structured data, content clarity, trust markers, crawler access and Lighthouse results.
@@ -260,9 +260,9 @@ function Dashboard({ report, onReset }) {
             <ResponsiveContainer width="100%" height="100%">
               <RadarChart data={radar}>
                 <PolarGrid stroke="rgba(255,255,255,.16)" />
-                <PolarAngleAxis dataKey="name" stroke="#cbd5e1" />
-                <PolarRadiusAxis stroke="#64748b" />
-                <Radar dataKey="value" stroke="#22d3ee" fill="#22d3ee" fillOpacity={0.28} />
+                <PolarAngleAxis dataKey="name" stroke="#c7d0c6" />
+                <PolarRadiusAxis stroke="#8B9C8C" />
+                <Radar dataKey="value" stroke="#8B9C8C" fill="#2E5E53" fillOpacity={0.34} />
                 <Tooltip contentStyle={{ background: "#020617", border: "1px solid rgba(255,255,255,.16)", borderRadius: 12 }} />
               </RadarChart>
             </ResponsiveContainer>
@@ -270,10 +270,10 @@ function Dashboard({ report, onReset }) {
           <Card className="h-96">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={breakdown}>
-                <XAxis dataKey="name" stroke="#94a3b8" fontSize={11} interval={0} angle={-25} textAnchor="end" height={80} />
-                <YAxis stroke="#94a3b8" domain={[0, 100]} />
+                <XAxis dataKey="name" stroke="#aeb9ad" fontSize={11} interval={0} angle={-25} textAnchor="end" height={80} />
+                <YAxis stroke="#aeb9ad" domain={[0, 100]} />
                 <Tooltip contentStyle={{ background: "#020617", border: "1px solid rgba(255,255,255,.16)", borderRadius: 12 }} />
-                <Bar dataKey="value" fill="#67e8f9" radius={[8, 8, 0, 0]} />
+                <Bar dataKey="value" fill="#8B9C8C" radius={[8, 8, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </Card>
@@ -306,7 +306,7 @@ function Dashboard({ report, onReset }) {
         <div className="grid gap-4">
           {visibleRecommendations.map((item) => (
             <Card key={item.title}>
-              <div className="grid gap-4 lg:grid-cols-[1fr_14rem]">
+              <div className="grid gap-4 lg:grid-cols-[1fr_12rem]">
                 <div>
                   <h3 className="text-lg font-semibold text-white">{item.title}</h3>
                   <p className="mt-2 text-sm leading-6 text-slate-300">{item.description}</p>
@@ -316,13 +316,10 @@ function Dashboard({ report, onReset }) {
                     <Info label="How To Fix" value={item.howToFix} />
                   </div>
                 </div>
-                <div className={`${styles.softGlass} rounded-2xl p-4 text-sm`}>
-                  <p className="text-slate-400">Difficulty</p>
-                  <p className="font-semibold text-white">{item.difficulty}</p>
-                  <p className="mt-3 text-slate-400">Estimated Time</p>
-                  <p className="font-semibold text-white">{item.estimatedTime}</p>
-                  <p className="mt-3 text-slate-400">Expected Score Gain</p>
-                  <p className="text-xl font-semibold text-emerald-300">+{item.expectedGain} Points</p>
+                <div className={`${styles.gainPanel} rounded-2xl p-4 text-sm`}>
+                  <p className="text-[#c7d0c6]">Expected Score Gain</p>
+                  <p className="mt-2 text-3xl font-semibold text-[#9fe0a8]">+{item.expectedGain}</p>
+                  <p className="mt-1 text-xs uppercase tracking-[0.18em] text-[#8B9C8C]">Points</p>
                 </div>
               </div>
             </Card>
@@ -338,22 +335,20 @@ function Dashboard({ report, onReset }) {
                   <p className="mt-3 max-w-2xl text-sm leading-6 text-[#c7d0c6]">
                     Enter your email to receive the complete report with all recommendations, platform scores, technical checks and a call request flag for follow-up.
                   </p>
+                  {report.quickWins.length > 0 && (
+                    <div className="mt-5 flex flex-wrap gap-2">
+                      {report.quickWins.slice(0, 3).map((item) => (
+                        <span key={item.title} className="rounded-full border border-[#8B9C8C]/20 bg-[#8B9C8C]/10 px-3 py-1 text-xs text-[#d9e1d8]">
+                          {item.title}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <EmailCapture report={report} compact />
               </div>
             </div>
           )}
-        </div>
-      </Section>
-
-      <Section title="Quick Wins">
-        <div className="grid gap-3 md:grid-cols-3">
-          {report.quickWins.length ? report.quickWins.map((item) => (
-            <div key={item.title} className={`${styles.softGlass} rounded-2xl p-4`}>
-              <p className="font-semibold text-white">{item.title}</p>
-              <p className="mt-2 text-sm text-slate-400">{item.estimatedTime}</p>
-            </div>
-          )) : <p className="text-slate-400">No sub-30-minute quick wins were detected.</p>}
         </div>
       </Section>
 
@@ -427,7 +422,7 @@ function EmailCapture({ report, compact = false, title = "Want a detailed AI Rea
   }
 
   const form = (
-    <Card className={compact ? "p-4" : ""}>
+    <div className={compact ? styles.compactCapture : styles.reportCapture}>
       <form onSubmit={handleSubmit(onSubmit)} className="grid gap-4">
         {!compact && description && <p className="text-sm leading-6 text-slate-300">{description}</p>}
         <div className={compact ? "grid gap-3" : "grid gap-4 md:grid-cols-[1fr_auto]"}>
@@ -453,7 +448,7 @@ function EmailCapture({ report, compact = false, title = "Want a detailed AI Rea
           </a>
         )}
       </form>
-    </Card>
+    </div>
   );
 
   if (compact) return form;

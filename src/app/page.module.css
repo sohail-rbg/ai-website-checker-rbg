@@ -209,6 +209,34 @@
     rgba(4, 8, 6, 0.84);
 }
 
+.gainPanel {
+  border: 1px solid rgba(139, 156, 140, 0.2);
+  background:
+    radial-gradient(circle at top right, rgba(159, 224, 168, 0.18), transparent 8rem),
+    rgba(46, 94, 83, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.025);
+}
+
+.compactCapture,
+.reportCapture {
+  border: 1px solid rgba(139, 156, 140, 0.18);
+  background:
+    linear-gradient(145deg, rgba(46, 94, 83, 0.18), rgba(4, 8, 6, 0.7)),
+    rgba(4, 8, 6, 0.74);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.025);
+  backdrop-filter: blur(18px);
+}
+
+.compactCapture {
+  border-radius: 24px;
+  padding: 16px;
+}
+
+.reportCapture {
+  border-radius: 28px;
+  padding: 24px;
+}
+
 .lockedPanel::before {
   position: absolute;
   inset: -40% 20% auto;
@@ -223,7 +251,7 @@
 }
 
 .progressLine {
-  background: linear-gradient(90deg, #2E5E53, #8B9C8C, #262a53);
+  background: linear-gradient(90deg, #2E5E53, #8B9C8C, #9fe0a8);
   box-shadow: 0 0 30px rgba(46, 94, 83, 0.45);
 }
 
