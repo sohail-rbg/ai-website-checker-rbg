@@ -175,6 +175,72 @@ function buildReportEmail({ website, overallScore, grade, topImprovements, repor
   return { text, html };
 }
 
+function buildAdminLeadEmail({ email, website, overallScore, grade, wantsCall, reportUrl, leadId, topImprovements }) {
+  const text = [
+    "New AI Website Checker Lead",
+    "",
+    `Email: ${email}`,
+    `Website: ${website}`,
+    `Overall Score: ${overallScore}/100`,
+    `Grade: ${grade || "N/A"}`,
+    `Call requested: ${wantsCall ? "Yes" : "No"}`,
+    `Lead ID: ${leadId}`,
+    reportUrl ? `Hosted report: ${reportUrl}` : "",
+    "",
+    "Top improvements:",
+    ...topImprovements.slice(0, 5).map((item, index) => `${index + 1}. ${item}`),
+  ].join("\n");
+
+  const html = `
+    <div style="margin:0;padding:0;background:#020302;font-family:Arial,Helvetica,sans-serif;color:#111827">
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#020302;padding:24px 12px">
+        <tr>
+          <td align="center">
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:680px;border-collapse:collapse">
+              <tr>
+                <td style="border-radius:24px 24px 0 0;background:#020302;background-image:linear-gradient(135deg,#020302,#11231f 62%,#2E5E53);padding:30px;color:#ffffff">
+                  <p style="margin:0 0 10px;color:#8B9C8C;font-size:12px;font-weight:800;letter-spacing:.2em;text-transform:uppercase">New Lead</p>
+                  <h1 style="margin:0;font-size:30px;line-height:1.12;color:#ffffff">AI Website Checker Submission</h1>
+                  <p style="margin:12px 0 0;color:#d9e1d8;font-size:15px;word-break:break-word">${escapeHtml(website)}</p>
+                </td>
+              </tr>
+              <tr>
+                <td style="background:#f6f7f4;padding:24px 30px">
+                  <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+                    <tr>
+                      <td style="border-radius:18px;background:#ffffff;border:1px solid #dfe5dd;padding:18px">
+                        <p style="margin:0 0 8px;color:#374151"><strong>Email:</strong> <a href="mailto:${escapeHtml(email)}" style="color:#2E5E53">${escapeHtml(email)}</a></p>
+                        <p style="margin:0 0 8px;color:#374151"><strong>Website:</strong> ${escapeHtml(website)}</p>
+                        <p style="margin:0 0 8px;color:#374151"><strong>Score:</strong> ${overallScore}/100</p>
+                        <p style="margin:0 0 8px;color:#374151"><strong>Grade:</strong> ${escapeHtml(grade || "N/A")}</p>
+                        <p style="margin:0;color:#374151"><strong>Call requested:</strong> ${wantsCall ? "Yes" : "No"}</p>
+                      </td>
+                    </tr>
+                  </table>
+                  ${reportUrl ? `<a href="${escapeHtml(reportUrl)}" style="display:inline-block;margin-top:18px;border-radius:999px;background:#8B9C8C;color:#020302;font-weight:800;text-decoration:none;padding:13px 20px">Open Hosted Report</a>` : ""}
+                  <h2 style="margin:26px 0 12px;color:#111827;font-size:18px">Top Improvements</h2>
+                  ${topImprovements.slice(0, 5).map((item, index) => `
+                    <div style="border-radius:14px;background:#ffffff;border:1px solid #e5e7eb;padding:12px 14px;margin-bottom:10px;color:#374151">
+                      <strong style="color:#2E5E53">${index + 1}.</strong> ${escapeHtml(item)}
+                    </div>
+                  `).join("")}
+                </td>
+              </tr>
+              <tr>
+                <td style="border-radius:0 0 24px 24px;background:#111827;padding:16px 30px;color:#9ca3af;font-size:12px;text-align:center">
+                  Lead ID: ${escapeHtml(leadId)}
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>
+    </div>
+  `;
+
+  return { text, html };
+}
+
 export async function POST(request) {
   try {
     const rate = checkRateLimit(clientKey(request, "email"), { limit: 12, windowMs: 60 * 60 * 1000 });
@@ -242,6 +308,25 @@ export async function POST(request) {
         subject: "Your AI Website Readiness Report",
         text: emailReport.text,
         html: emailReport.html,
+      });
+
+      const adminEmail = process.env.ADMIN_NOTIFY_EMAIL?.trim() || "sohail@rebrandgurus.com";
+      const adminReport = buildAdminLeadEmail({
+        email,
+        website,
+        overallScore,
+        grade: body.grade,
+        wantsCall: Boolean(body.wantsCall),
+        reportUrl,
+        leadId: String(lead._id),
+        topImprovements,
+      });
+      await transporter.sendMail({
+        from: process.env.SMTP_FROM?.trim(),
+        to: adminEmail,
+        subject: `New AI Website Checker Lead: ${website}`,
+        text: adminReport.text,
+        html: adminReport.html,
       });
       lead.emailSent = true;
       await lead.save();
