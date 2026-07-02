@@ -289,6 +289,10 @@
 }
 
 @media (max-width: 900px) {
+  .heroSection {
+    min-height: auto;
+  }
+
   .featureGrid {
     grid-template-columns: 1fr;
     max-width: 560px;
@@ -305,24 +309,110 @@
 }
 
 @media (max-width: 640px) {
+  .shell {
+    background:
+      radial-gradient(circle at 50% 0%, rgba(139, 156, 140, 0.16), transparent 14rem),
+      radial-gradient(circle at 20% 20%, rgba(46, 94, 83, 0.2), transparent 20rem),
+      linear-gradient(180deg, #010201 0%, #030604 44%, #020302 100%);
+  }
+
+  .heroGrid {
+    background-size: 24px 24px, 72px 72px, 72px 72px;
+    opacity: 0.85;
+  }
+
   .logoSlot {
-    padding: 10px 26px 9px;
+    padding: 8px 22px 7px;
   }
 
   .heroAura {
-    top: 11rem;
+    top: 10.5rem;
+    width: 23rem;
+    height: 23rem;
+    opacity: 0.55;
+  }
+
+  .heroAura::before,
+  .heroAura::after {
+    display: none;
   }
 
   .heroSearch {
     border-radius: 22px;
+    padding: 10px;
+  }
+
+  .featureGrid {
+    row-gap: 18px;
+    margin-top: 34px;
+  }
+
+  .featureCard {
+    grid-template-columns: 38px 1fr;
+    gap: 16px;
+    min-height: auto;
+    border-bottom: 1px solid rgba(139, 156, 140, 0.12);
+    padding-bottom: 18px;
+  }
+
+  .featureCard:last-child {
+    border-bottom: 0;
+    padding-bottom: 0;
+  }
+
+  .featureIcon svg {
+    width: 32px;
+    height: 32px;
+  }
+
+  .heroBand {
+    margin-top: 30px;
+    padding: 18px;
+  }
+
+  .heroBand > div {
+    align-items: flex-start;
+  }
+
+  .bandIcon {
+    width: 42px;
+    height: 42px;
   }
 
   .bandWave {
     display: none;
   }
 
+  .lockedPanel {
+    padding: 20px;
+  }
+
+  .compactCapture,
+  .reportCapture {
+    border-radius: 22px;
+    padding: 14px;
+  }
+
   .scanToast {
-    right: 16px;
-    bottom: 16px;
+    right: 12px;
+    bottom: 12px;
+    width: calc(100vw - 24px);
+    border-radius: 20px;
+    padding: 14px;
+  }
+}
+
+@media (max-width: 420px) {
+  .titleRule {
+    margin-top: 18px;
+  }
+
+  .heroBand {
+    border-radius: 16px;
+  }
+
+  .scanSpinner {
+    width: 30px;
+    height: 30px;
   }
 }

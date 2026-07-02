@@ -117,22 +117,22 @@ function FeatureIcon({ type }) {
 
 function CircularScore({ score, grade }) {
   return (
-    <div className="flex items-center gap-6">
+    <div className="flex flex-col items-center gap-5 text-center sm:flex-row sm:text-left">
       <div
-        className={`${styles.meter} grid size-36 place-items-center rounded-full`}
+        className={`${styles.meter} grid size-32 shrink-0 place-items-center rounded-full sm:size-36`}
         style={{ "--score": `${score}%` }}
       >
-        <div className="grid size-28 place-items-center rounded-full bg-slate-950">
+        <div className="grid size-24 place-items-center rounded-full bg-slate-950 sm:size-28">
           <div className="text-center">
-            <div className="text-4xl font-semibold text-white">{score}</div>
+            <div className="text-3xl font-semibold text-white sm:text-4xl">{score}</div>
             <div className="text-xs uppercase tracking-[0.28em] text-slate-400">Grade {grade}</div>
           </div>
         </div>
       </div>
       <div>
         <p className="text-sm uppercase tracking-[0.3em] text-[#8B9C8C]">Overall Score</p>
-        <h2 className="mt-2 text-4xl font-semibold text-white">AI Website Readiness</h2>
-        <p className="mt-3 max-w-xl text-sm leading-6 text-slate-300">
+        <h2 className="mt-2 text-3xl font-semibold text-white sm:text-4xl">AI Website Readiness</h2>
+        <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-slate-300 sm:mx-0">
           Calculated from live technical signals, structured data, content clarity, trust markers, crawler access and Lighthouse results.
         </p>
       </div>
@@ -256,7 +256,7 @@ function Dashboard({ report, onReset }) {
 
       <Section title="Score Breakdown">
         <div className="grid gap-5 lg:grid-cols-2">
-          <Card className="h-96">
+          <Card className="h-80 sm:h-96">
             <ResponsiveContainer width="100%" height="100%">
               <RadarChart data={radar}>
                 <PolarGrid stroke="rgba(255,255,255,.16)" />
@@ -267,7 +267,7 @@ function Dashboard({ report, onReset }) {
               </RadarChart>
             </ResponsiveContainer>
           </Card>
-          <Card className="h-96">
+          <Card className="h-80 sm:h-96">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={breakdown}>
                 <XAxis dataKey="name" stroke="#aeb9ad" fontSize={11} interval={0} angle={-25} textAnchor="end" height={80} />
@@ -511,12 +511,12 @@ export default function Home() {
             </span>
             AI crawler, LLM and answer-engine readiness audit
           </div>
-          <h1 className={`${styles.heroTitle} mx-auto max-w-5xl text-5xl font-semibold leading-[0.95] tracking-tight text-white sm:text-7xl lg:text-8xl`}>
+          <h1 className={`${styles.heroTitle} mx-auto max-w-5xl text-[3.1rem] font-semibold leading-[0.95] tracking-tight text-white sm:text-7xl lg:text-8xl`}>
             Is Your Website
             <span className={styles.titleAccent}> Ready for AI?</span>
           </h1>
           <div className={styles.titleRule} />
-          <p className="mx-auto mt-7 max-w-3xl text-lg leading-8 text-[#c7d0c6] sm:text-xl">
+          <p className="mx-auto mt-6 max-w-3xl text-base leading-7 text-[#c7d0c6] sm:mt-7 sm:text-xl sm:leading-8">
             Analyze how ChatGPT, Claude, Gemini, Perplexity and other AI systems understand your website.
           </p>
         </motion.div>
@@ -537,11 +537,11 @@ export default function Home() {
             <input
               {...register("url", { required: "Website URL is required", validate: validateUrl })}
               placeholder="https://example.com"
-              className="h-16 w-full rounded-3xl border border-transparent bg-transparent py-0 pl-20 pr-6 text-lg text-white outline-none placeholder:text-white/34"
+              className="h-14 w-full rounded-3xl border border-transparent bg-transparent py-0 pl-16 pr-4 text-base text-white outline-none placeholder:text-white/34 sm:h-16 sm:pl-20 sm:pr-6 sm:text-lg"
             />
             {errors.url && <p className="px-4 pt-2 text-sm text-rose-300">{errors.url.message}</p>}
           </div>
-          <button disabled={isScanning} className="flex h-16 items-center justify-center gap-3 rounded-2xl bg-[#98d8a1] px-8 text-base font-semibold text-[#020302] shadow-[0_0_34px_rgba(152,216,161,.28)] transition hover:bg-[#aaf0b3] disabled:cursor-wait disabled:opacity-70">
+          <button disabled={isScanning} className="flex h-14 items-center justify-center gap-3 rounded-2xl bg-[#98d8a1] px-6 text-base font-semibold text-[#020302] shadow-[0_0_34px_rgba(152,216,161,.28)] transition hover:bg-[#aaf0b3] disabled:cursor-wait disabled:opacity-70 sm:h-16 sm:px-8">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M5 12h14" /><path d="m13 6 6 6-6 6" />
             </svg>
