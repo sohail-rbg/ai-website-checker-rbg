@@ -14,12 +14,21 @@ export async function connectToDatabase() {
   }
 
   if (!cached.promise) {
-    cached.promise = mongoose.connect(process.env.MONGODB_URI, {
+    cached.promise = mongoose.connect(process.env.MONGODB_URI.trim(), {
       bufferCommands: false,
       dbName: process.env.MONGODB_DB || "ai_website_checker",
+      maxPoolSize: 5,
+      serverSelectionTimeoutMS: 8000,
+      connectTimeoutMS: 8000,
+      socketTimeoutMS: 12000,
     });
   }
 
-  cached.conn = await cached.promise;
+  try {
+    cached.conn = await cached.promise;
+  } catch (error) {
+    cached.promise = null;
+    throw error;
+  }
   return cached.conn;
 }

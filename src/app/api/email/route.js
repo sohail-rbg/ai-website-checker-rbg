@@ -91,6 +91,32 @@ function sanitizeReportForStorage(report) {
   return JSON.parse(JSON.stringify(cleaned));
 }
 
+function databaseErrorPayload(error, code) {
+  const message = error?.message || "";
+  const lower = message.toLowerCase();
+
+  let errorText = "Could not save this lead right now.";
+  if (/mongodb_uri/i.test(message)) {
+    errorText = "MongoDB is not configured. Add MONGODB_URI to your live environment.";
+  } else if (lower.includes("bad auth") || lower.includes("authentication failed") || lower.includes("auth failed")) {
+    errorText = "MongoDB authentication failed. Check the live MONGODB_URI username and password.";
+  } else if (lower.includes("querysrv") || lower.includes("enotfound") || lower.includes("getaddrinfo")) {
+    errorText = "MongoDB hostname could not be resolved. Check the live MONGODB_URI value.";
+  } else if (lower.includes("server selection timed out") || lower.includes("timed out")) {
+    errorText = "MongoDB connection timed out. Check Atlas Network Access/IP allowlist for Vercel.";
+  } else if (error?.name === "ValidationError") {
+    errorText = "Lead data validation failed before saving.";
+  } else if (error?.code === 11000) {
+    errorText = "This lead already exists, but the report could not be updated.";
+  }
+
+  return {
+    error: errorText,
+    code,
+    detail: process.env.NODE_ENV === "production" ? undefined : message,
+  };
+}
+
 function buildReportEmail({ website, overallScore, grade, topImprovements, report, wantsCall, reportUrl }) {
   const platforms = Array.isArray(report?.platformScores) ? report.platformScores : [];
   const scoreBreakdown = report?.scoreBreakdown || {};
@@ -335,25 +361,37 @@ export async function POST(request) {
       return Response.json({ error: "Report details are missing." }, { status: 400 });
     }
 
-    await connectToDatabase();
-    const lead = await Lead.findOneAndUpdate(
-      { email, website },
-      {
-        $set: {
-          overallScore,
-          wantsCall: Boolean(body.wantsCall),
-          lastSubmittedAt: new Date(),
-          summary: {
-            grade: body.grade,
-            topImprovements,
-            platformScores: body.platformScores || {},
+    try {
+      await connectToDatabase();
+    } catch (error) {
+      console.error("MongoDB connection failed during lead capture", error);
+      return Response.json(databaseErrorPayload(error, "DATABASE_CONNECTION_FAILED"), { status: 500 });
+    }
+
+    let lead;
+    try {
+      lead = await Lead.findOneAndUpdate(
+        { email, website },
+        {
+          $set: {
+            overallScore,
+            wantsCall: Boolean(body.wantsCall),
+            lastSubmittedAt: new Date(),
+            summary: {
+              grade: body.grade,
+              topImprovements,
+              platformScores: body.platformScores || {},
+            },
+            report: fullReport,
           },
-          report: fullReport,
+          $inc: { submissionCount: 1 },
         },
-        $inc: { submissionCount: 1 },
-      },
-      { upsert: true, new: true, setDefaultsOnInsert: true }
-    );
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      );
+    } catch (error) {
+      console.error("Lead save failed", error);
+      return Response.json(databaseErrorPayload(error, "LEAD_SAVE_FAILED"), { status: 500 });
+    }
 
     const origin = request.headers.get("origin") || new URL(request.url).origin;
     const reportUrl = `${origin}/report/${lead._id}`;
@@ -415,17 +453,24 @@ export async function POST(request) {
       delivery.error = "SMTP is not configured. Add SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS and SMTP_FROM.";
     }
 
-    lead.emailSent = delivery.userSent && delivery.adminSent;
-    lead.emailDelivery = delivery;
-    await lead.save();
+    const emailSent = delivery.userSent && delivery.adminSent;
+    try {
+      await Lead.updateOne(
+        { _id: lead._id },
+        { $set: { emailSent, emailDelivery: delivery } }
+      );
+    } catch (error) {
+      console.error("Lead email delivery status update failed", error);
+      delivery.error = [delivery.error, "Lead saved, but delivery status could not be updated."].filter(Boolean).join(" | ");
+    }
 
     return Response.json({
       ok: true,
       leadId: String(lead._id),
       reportUrl,
-      emailSent: lead.emailSent,
+      emailSent,
       delivery,
-      message: lead.emailSent
+      message: emailSent
         ? "Report confirmation sent."
         : "Lead saved. Email delivery needs SMTP configuration.",
     });
