@@ -1,0 +1,264 @@
+import nodemailer from "nodemailer";
+import { connectToDatabase } from "@/lib/db";
+import Lead from "@/models/Lead";
+import { checkRateLimit, clientKey } from "@/lib/rateLimit";
+
+export const runtime = "nodejs";
+
+function validateEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || "").trim());
+}
+
+function createTransporter() {
+  const SMTP_HOST = process.env.SMTP_HOST?.trim();
+  const SMTP_PORT = process.env.SMTP_PORT?.trim();
+  const SMTP_USER = process.env.SMTP_USER?.trim();
+  const SMTP_PASS = process.env.SMTP_PASS?.trim();
+  const SMTP_FROM = process.env.SMTP_FROM?.trim();
+  if (!SMTP_HOST || !SMTP_PORT || !SMTP_USER || !SMTP_PASS || !SMTP_FROM) return null;
+  return nodemailer.createTransport({
+    host: SMTP_HOST,
+    port: Number(SMTP_PORT),
+    secure: Number(SMTP_PORT) === 465,
+    auth: { user: SMTP_USER, pass: SMTP_PASS },
+  });
+}
+
+function escapeHtml(value) {
+  return String(value || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function buildReportEmail({ website, overallScore, grade, topImprovements, report, wantsCall, reportUrl }) {
+  const platforms = Array.isArray(report?.platformScores) ? report.platformScores : [];
+  const scoreBreakdown = report?.scoreBreakdown || {};
+  const entities = report?.entities || {};
+  const checklist = report?.checklist || {};
+  const recommendations = Array.isArray(report?.recommendations) ? report.recommendations.slice(0, 10) : [];
+
+  const text = [
+    "Your AI Website Readiness Report",
+    "",
+    `Website: ${website}`,
+    `Overall Score: ${overallScore}/100`,
+    `Grade: ${grade || "N/A"}`,
+    wantsCall ? "Call request: Yes" : "Call request: No",
+    reportUrl ? `Hosted report: ${reportUrl}` : "",
+    "",
+    "Top Improvements:",
+    ...topImprovements.map((item, index) => `${index + 1}. ${item}`),
+    "",
+    "AI Platform Scores:",
+    ...platforms.map((item) => `${item.platform}: ${item.score}% - ${item.status}`),
+    "",
+    "Score Breakdown:",
+    ...Object.entries(scoreBreakdown).map(([key, value]) => `${key}: ${value}/100`),
+    "",
+    "Detected Entities:",
+    `Company: ${entities.companyName || "Not detected"}`,
+    `Email: ${(entities.emails || [])[0] || "Not detected"}`,
+    `Phone: ${(entities.phones || [])[0] || "Not detected"}`,
+    "",
+    "Detailed Recommendations:",
+    ...recommendations.map((item, index) => `${index + 1}. ${item.title} - ${item.howToFix || item.description}`),
+    "",
+    "Thank you for using AI Website Readiness Checker.",
+  ].join("\n");
+
+  const html = `
+    <div style="margin:0;padding:0;background:#020302;color:#111827;font-family:Arial,Helvetica,sans-serif">
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#020302;padding:28px 12px">
+        <tr>
+          <td align="center">
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:760px;border-collapse:collapse">
+              <tr>
+                <td style="border-radius:28px 28px 0 0;background:#020302;background-image:linear-gradient(135deg,#020302,#11231f 56%,#262a53);padding:34px 30px;color:#ffffff">
+                  <p style="margin:0 0 12px;color:#8B9C8C;font-size:12px;font-weight:700;letter-spacing:.22em;text-transform:uppercase">AI Website Readiness Checker</p>
+                  <h1 style="margin:0;font-size:34px;line-height:1.08;letter-spacing:-.02em;color:#ffffff">Your Complete AI Readiness Report</h1>
+                  <p style="margin:14px 0 0;color:#d9e1d8;font-size:15px;line-height:1.7;word-break:break-word">${escapeHtml(website)}</p>
+                  <table role="presentation" cellspacing="0" cellpadding="0" style="margin-top:24px">
+                    <tr>
+                      <td style="padding:0 24px 0 0;border-right:1px solid rgba(255,255,255,.18)">
+                        <div style="font-size:58px;font-weight:800;line-height:1;color:#8B9C8C">${overallScore}</div>
+                        <div style="margin-top:6px;color:#d9e1d8;font-size:12px;text-transform:uppercase;letter-spacing:.16em">Overall Score</div>
+                      </td>
+                      <td style="padding-left:24px">
+                        <div style="font-size:32px;font-weight:800;color:#ffffff">${escapeHtml(grade || "N/A")}</div>
+                        <div style="margin-top:6px;color:#d9e1d8;font-size:12px;text-transform:uppercase;letter-spacing:.16em">Readiness Grade</div>
+                      </td>
+                    </tr>
+                  </table>
+                  ${reportUrl ? `<a href="${escapeHtml(reportUrl)}" style="display:inline-block;margin-top:26px;border-radius:999px;background:#8B9C8C;color:#020302;font-weight:800;text-decoration:none;padding:13px 20px">Open Hosted Report</a>` : ""}
+                </td>
+              </tr>
+              <tr>
+                <td style="background:#f6f7f4;padding:26px 30px">
+                  <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+                    <tr>
+                      <td style="border-radius:20px;background:#ffffff;border:1px solid #dfe5dd;padding:22px">
+                        <h2 style="margin:0 0 14px;color:#111827;font-size:20px">Priority Improvements</h2>
+                        ${topImprovements.map((item, index) => `
+                          <div style="padding:${index === 0 ? "0 0 14px" : "14px 0"};border-bottom:${index === topImprovements.length - 1 ? "0" : "1px solid #e5e7eb"}">
+                            <span style="display:inline-block;width:26px;height:26px;border-radius:999px;background:#2E5E53;color:#ffffff;text-align:center;line-height:26px;font-size:13px;font-weight:800">${index + 1}</span>
+                            <strong style="margin-left:10px;color:#111827">${escapeHtml(item)}</strong>
+                          </div>
+                        `).join("")}
+                      </td>
+                    </tr>
+                  </table>
+
+                  <h2 style="margin:28px 0 14px;color:#111827;font-size:20px">AI Platform Readiness</h2>
+                  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-spacing:0 10px">
+                    ${platforms.map((item) => `
+                      <tr>
+                        <td style="border-radius:16px 0 0 16px;background:#ffffff;border-left:1px solid #e5e7eb;border-top:1px solid #e5e7eb;border-bottom:1px solid #e5e7eb;padding:14px 16px;color:#111827;font-weight:800">${escapeHtml(item.platform)}</td>
+                        <td style="background:#ffffff;border-top:1px solid #e5e7eb;border-bottom:1px solid #e5e7eb;padding:14px 16px;color:#2E5E53;font-size:22px;font-weight:900;text-align:center">${item.score}%</td>
+                        <td style="border-radius:0 16px 16px 0;background:#ffffff;border-right:1px solid #e5e7eb;border-top:1px solid #e5e7eb;border-bottom:1px solid #e5e7eb;padding:14px 16px;color:#6b7280;text-align:right">${escapeHtml(item.status)}</td>
+                      </tr>
+                    `).join("")}
+                  </table>
+
+                  <h2 style="margin:28px 0 14px;color:#111827;font-size:20px">Score Breakdown</h2>
+                  ${Object.entries(scoreBreakdown).map(([key, value]) => `
+                    <div style="margin:0 0 12px">
+                      <div style="display:flex;justify-content:space-between;margin-bottom:6px;color:#374151;font-size:13px">
+                        <strong style="text-transform:capitalize">${escapeHtml(key)}</strong>
+                        <span>${value}/100</span>
+                      </div>
+                      <div style="height:9px;border-radius:999px;background:#dfe5dd;overflow:hidden">
+                        <div style="height:9px;width:${value}%;border-radius:999px;background:#2E5E53"></div>
+                      </div>
+                    </div>
+                  `).join("")}
+
+                  <h2 style="margin:30px 0 14px;color:#111827;font-size:20px">Detailed Recommendations</h2>
+                  ${recommendations.map((item) => `
+                    <div style="border:1px solid #e5e7eb;border-radius:20px;background:#ffffff;padding:18px;margin:0 0 14px">
+                      <h3 style="margin:0 0 8px;color:#111827;font-size:18px">${escapeHtml(item.title)}</h3>
+                      <p style="margin:0 0 12px;color:#4b5563;line-height:1.6">${escapeHtml(item.description)}</p>
+                      <div style="border-radius:14px;background:#f6f7f4;padding:12px;margin-bottom:10px"><strong>Status:</strong> ${escapeHtml(item.currentStatus)}</div>
+                      <p style="margin:0 0 8px;color:#374151"><strong>Why AI cares:</strong> ${escapeHtml(item.whyAiCares)}</p>
+                      <p style="margin:0 0 10px;color:#374151"><strong>How to fix:</strong> ${escapeHtml(item.howToFix)}</p>
+                      <p style="margin:0;color:#2E5E53;font-weight:800">${escapeHtml(item.difficulty)} · +${item.expectedGain} points</p>
+                    </div>
+                  `).join("")}
+
+                  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-top:24px">
+                    <tr>
+                      <td style="border-radius:20px;background:#ffffff;border:1px solid #e5e7eb;padding:18px">
+                        <h2 style="margin:0 0 12px;color:#111827;font-size:20px">Detected Entity Signals</h2>
+                        <p style="margin:0 0 6px;color:#374151"><strong>Company:</strong> ${escapeHtml(entities.companyName || "Not detected")}</p>
+                        <p style="margin:0 0 6px;color:#374151"><strong>Email:</strong> ${escapeHtml((entities.emails || [])[0] || "Not detected")}</p>
+                        <p style="margin:0;color:#374151"><strong>Phone:</strong> ${escapeHtml((entities.phones || [])[0] || "Not detected")}</p>
+                      </td>
+                    </tr>
+                  </table>
+                  ${wantsCall ? `<p style="margin:22px 0 0;border-radius:16px;background:#2E5E53;color:#ffffff;padding:14px 16px;font-weight:800">Call request received. We will follow up to review these fixes.</p>` : ""}
+                </td>
+              </tr>
+              <tr>
+                <td style="border-radius:0 0 28px 28px;background:#111827;padding:18px 30px;color:#9ca3af;font-size:12px;text-align:center">
+                  Thank you for using AI Website Readiness Checker.
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>
+    </div>
+  `;
+
+  return { text, html };
+}
+
+export async function POST(request) {
+  try {
+    const rate = checkRateLimit(clientKey(request, "email"), { limit: 12, windowMs: 60 * 60 * 1000 });
+    if (!rate.allowed) {
+      return Response.json(
+        { error: "Too many report requests. Please try again later." },
+        { status: 429, headers: { "Retry-After": String(Math.ceil((rate.resetAt - Date.now()) / 1000)) } }
+      );
+    }
+    const body = await request.json();
+    const email = String(body.email || "").trim().toLowerCase();
+    const website = String(body.website || "").trim();
+    const overallScore = Number(body.overallScore);
+    const fullReport = body.report && typeof body.report === "object" ? body.report : {};
+    const topImprovements = Array.isArray(body.topImprovements)
+      ? body.topImprovements.slice(0, 10)
+      : Array.isArray(fullReport.recommendations)
+        ? fullReport.recommendations.slice(0, 10).map((item) => item.title)
+        : [];
+
+    if (!validateEmail(email)) {
+      return Response.json({ error: "Please enter a valid email address." }, { status: 400 });
+    }
+    if (!website || Number.isNaN(overallScore)) {
+      return Response.json({ error: "Report details are missing." }, { status: 400 });
+    }
+
+    await connectToDatabase();
+    const lead = await Lead.findOneAndUpdate(
+      { email, website },
+      {
+        $set: {
+          overallScore,
+          wantsCall: Boolean(body.wantsCall),
+          lastSubmittedAt: new Date(),
+          summary: {
+            grade: body.grade,
+            topImprovements,
+            platformScores: body.platformScores || {},
+          },
+          report: fullReport,
+        },
+        $inc: { submissionCount: 1 },
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+
+    const origin = request.headers.get("origin") || new URL(request.url).origin;
+    const reportUrl = `${origin}/report/${lead._id}`;
+
+    const transporter = createTransporter();
+    if (transporter) {
+      const emailReport = buildReportEmail({
+        website,
+        overallScore,
+        grade: body.grade,
+        topImprovements,
+        report: fullReport,
+        wantsCall: Boolean(body.wantsCall),
+        reportUrl,
+      });
+      await transporter.sendMail({
+        from: process.env.SMTP_FROM?.trim(),
+        to: email,
+        subject: "Your AI Website Readiness Report",
+        text: emailReport.text,
+        html: emailReport.html,
+      });
+      lead.emailSent = true;
+      await lead.save();
+    }
+
+    return Response.json({
+      ok: true,
+      leadId: String(lead._id),
+      reportUrl,
+      emailSent: Boolean(transporter),
+      message: transporter ? "Report confirmation sent." : "Lead saved. Configure SMTP settings to send email confirmations.",
+    });
+  } catch (error) {
+    const missingMongo = /MONGODB_URI/.test(error.message || "");
+    return Response.json(
+      { error: missingMongo ? "MongoDB is not configured. Add MONGODB_URI to your environment." : "Could not save this lead right now." },
+      { status: 500 }
+    );
+  }
+}

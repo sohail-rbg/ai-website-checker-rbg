@@ -1,0 +1,151 @@
+.page {
+  min-height: 100vh;
+  padding: 32px;
+  background: #f6f7f4;
+  color: #111827;
+  font-family: Arial, sans-serif;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin: 0 auto 24px;
+  max-width: 1080px;
+}
+
+.action {
+  border: 1px solid #d1d5db;
+  border-radius: 999px;
+  background: white;
+  color: #111827;
+  padding: 10px 16px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.hero,
+.section,
+.grid {
+  max-width: 1080px;
+  margin: 0 auto 20px;
+}
+
+.hero {
+  display: grid;
+  gap: 24px;
+  align-items: end;
+  border-radius: 28px;
+  background: #020302;
+  color: white;
+  padding: 40px;
+}
+
+.hero p {
+  margin: 0;
+  color: #8B9C8C;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+}
+
+.hero h1 {
+  overflow-wrap: anywhere;
+  margin: 0;
+  font-size: clamp(32px, 6vw, 68px);
+}
+
+.score strong {
+  display: block;
+  color: #8B9C8C;
+  font-size: 72px;
+  line-height: 1;
+}
+
+.grid,
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 14px;
+}
+
+.field,
+.cards article,
+.recommendations article {
+  border: 1px solid #e5e7eb;
+  border-radius: 18px;
+  background: white;
+  padding: 18px;
+}
+
+.field span,
+.cards span {
+  display: block;
+  margin-bottom: 8px;
+  color: #6b7280;
+  font-size: 12px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.cards strong {
+  font-size: 34px;
+}
+
+.bars {
+  display: grid;
+  gap: 12px;
+}
+
+.bars > div {
+  display: grid;
+  grid-template-columns: 140px 1fr 42px;
+  gap: 12px;
+  align-items: center;
+}
+
+.bars div div {
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e5e7eb;
+}
+
+.bars i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #2E5E53;
+}
+
+.recommendations {
+  display: grid;
+  gap: 14px;
+}
+
+.recommendations h3 {
+  margin-top: 0;
+}
+
+.recommendations dl {
+  display: grid;
+  gap: 8px;
+}
+
+.recommendations dt {
+  font-weight: 700;
+}
+
+.recommendations dd {
+  margin: 0 0 8px;
+}
+
+@media print {
+  .actions {
+    display: none;
+  }
+
+  .page {
+    background: white;
+    padding: 0;
+  }
+}

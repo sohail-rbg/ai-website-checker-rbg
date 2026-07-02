@@ -2,6 +2,7 @@
 const nextConfig = {
   /* config options here */
   reactCompiler: true,
+  serverExternalPackages: ["lighthouse", "puppeteer"],
 };
 
 export default nextConfig;

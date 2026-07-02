@@ -1,8 +1,13 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #020302;
+  --foreground: #f5f7f4;
+  --primary: #2E5E53;
+  --secondary: #8B9C8C;
+  --third: #262a53;
+  --primary-font: var(--font-space-grotesk), "Space Grotesk", sans-serif;
+  --heading-font: "Recoleta", Georgia, serif;
 }
 
 @theme inline {
@@ -22,5 +27,18 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--primary-font);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+button,
+input {
+  font: inherit;
 }
