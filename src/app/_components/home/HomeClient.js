@@ -160,10 +160,14 @@ const trustHighlights = [
 ];
 
 const scanFlow = [
-  ["01", "Crawl access", "Checks robots.txt, sitemap.xml, redirects, HTTPS and crawler permissions for major AI bots."],
-  ["02", "Meaning extraction", "Reads metadata, schema, headings, internal links and entity signals so AI can classify the business."],
-  ["03", "Trust scoring", "Reviews EEAT markers, contact signals, content clarity, readability and answer-ready structures."],
-  ["04", "Action plan", "Prioritizes the few fixes most likely to improve AI visibility, with score gain and rationale."],
+  ["01", "Checking robots.txt", "Reviews robots.txt access, AI crawler rules and blocked bots such as GPTBot, ClaudeBot and PerplexityBot."],
+  ["02", "Reading sitemap.xml", "Looks for sitemap coverage, valid XML and page discovery signals that help crawlers find important URLs."],
+  ["03", "Analyzing metadata", "Checks title, description, canonical, language, robots meta, Open Graph and Twitter card signals."],
+  ["04", "Detecting structured data", "Parses JSON-LD and microdata for Organization, FAQ, Service, Product, Breadcrumb and other schema types."],
+  ["05", "Reviewing content", "Audits headings, content structure, sentence clarity, definitions, FAQs, images and internal links."],
+  ["06", "Extracting entities", "Identifies brand, company, services, email, phone, address and location signals from live page content."],
+  ["07", "Running performance audit", "Measures live response and Lighthouse-style performance signals when the environment allows it."],
+  ["08", "Calculating readiness", "Weights all technical, content, trust and crawler findings into the final AI readiness recommendations."],
 ];
 
 const insightStats = [
@@ -416,7 +420,7 @@ export function Dashboard({ report, onReset }) {
           </button>
         </div>
 
-        <div className="relative overflow-hidden rounded-[2rem] border border-[#8B9C8C]/14 bg-[linear-gradient(135deg,rgba(9,20,17,.94),rgba(3,7,6,.97))] p-5 shadow-[0_24px_70px_rgba(0,0,0,.30)] sm:p-7">
+        <div className="relative overflow-hidden rounded-[2rem] bg-black p-5 shadow-[0_24px_70px_rgba(0,0,0,.30)] sm:p-7">
           <div className="pointer-events-none absolute inset-0 opacity-20 [background-image:radial-gradient(circle_at_center,rgba(144,238,154,.14)_1px,transparent_1.5px)] [background-size:18px_18px] [mask-image:radial-gradient(circle_at_15%_28%,black,transparent_24%)]" />
           <div className="relative grid gap-8 xl:grid-cols-[minmax(0,1fr)_27rem] xl:items-stretch">
             <div className="grid gap-7">
@@ -482,8 +486,8 @@ export function Dashboard({ report, onReset }) {
               <div className="mb-8 flex items-start justify-between gap-5">
                 <div>
                   <p className="text-sm font-semibold uppercase tracking-[0.32em] text-[#90ee9a]">Complete report</p>
-                  <h3 className="mt-6 text-3xl font-semibold leading-tight text-white sm:text-4xl">Send the full AI readiness report.</h3>
-                  <p className="mt-5 text-base leading-8 text-[#d9e1d8]/74">Get the detailed report by email and request a strategy call with us.</p>
+                  <h3 className="mt-6 text-3xl font-semibold leading-tight text-white sm:text-3xl">Send the full AI readiness report.</h3>
+                  <p className="mt-5 text-base leading-5 text-[#d9e1d8]/74">Get the detailed report by email and request a strategy call with us.</p>
                 </div>
                 <span className="hidden size-16 shrink-0 place-items-center rounded-2xl border border-[#8B9C8C]/22 bg-[#90ee9a]/8 text-[#90ee9a] sm:grid">
                   <Mail size={31} strokeWidth={1.65} aria-hidden="true" />
@@ -521,68 +525,240 @@ export function Dashboard({ report, onReset }) {
       <TechnicalAuditSection report={report} />
 
       <div id="top-improvements" />
-      <Section title="Top Improvements">
-        <div className="grid gap-4">
-          {visibleRecommendations.map((item) => (
-            <Card key={item.title}>
-              <div className="grid gap-4 lg:grid-cols-[1fr_12rem]">
+      <TopImprovementsSection
+        report={report}
+        visibleRecommendations={visibleRecommendations}
+        hiddenCount={hiddenCount}
+      />
+
+      <ContentOpportunitiesSection opportunities={report.contentOpportunities} />
+
+    </motion.div>
+  );
+}
+
+function ContentOpportunitiesSection({ opportunities = [] }) {
+  const found = opportunities.filter((item) => !item.suggested);
+  const suggested = opportunities.filter((item) => item.suggested);
+
+  if (!opportunities.length) return null;
+
+  return (
+    <section className={`${styles.pageContainer} mx-auto p-0`}>
+      <div className="mb-7 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <div className="flex items-center gap-4">
+            <span className="h-9 w-1 rounded-full bg-[#90ee9a]" />
+            <h2 className="text-3xl font-semibold tracking-tight text-white">Content Opportunities</h2>
+          </div>
+          <p className="mt-3 max-w-2xl text-base leading-7 text-[#d9e1d8]/68">
+            Pages and content assets that help answer engines understand trust, services, proof and intent.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-3">
+          <span className="inline-flex items-center gap-2 rounded-full border border-[#90ee9a]/20 bg-[#90ee9a]/8 px-4 py-2 text-sm font-semibold text-[#9fe0a8]">
+            <CheckCircle2 size={17} aria-hidden="true" />
+            {found.length} signals found
+          </span>
+          <span className="inline-flex items-center gap-2 rounded-full border border-amber-300/20 bg-amber-300/8 px-4 py-2 text-sm font-semibold text-amber-200">
+            <CircleAlert size={17} aria-hidden="true" />
+            {suggested.length} opportunities
+          </span>
+        </div>
+      </div>
+
+      <div className={`${styles.opportunityPanel} rounded-[2rem] p-5 sm:p-6`}>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+          {opportunities.map((item, index) => (
+            <article key={item.page} className={`${styles.opportunityCard} group rounded-[1.35rem] p-4`}>
+              <div className="flex items-start justify-between gap-4">
+                <span className={`grid size-11 place-items-center rounded-2xl ${item.suggested ? "bg-amber-300/10 text-amber-200" : "bg-[#90ee9a]/10 text-[#90ee9a]"}`}>
+                  {item.suggested ? <Lightbulb size={22} strokeWidth={1.8} aria-hidden="true" /> : <CheckCircle2 size={22} strokeWidth={1.8} aria-hidden="true" />}
+                </span>
+                <span className="text-xs font-bold uppercase tracking-[0.18em] text-[#8B9C8C]">0{index + 1}</span>
+              </div>
+              <h3 className="mt-5 text-base font-semibold leading-snug text-white">{item.page}</h3>
+              <p className="mt-2 text-sm leading-6 text-[#d9e1d8]/62">
+                {item.suggested
+                  ? "Recommended to improve topical coverage and answer-ready context."
+                  : "Detected on the scanned website as a helpful AI trust signal."}
+              </p>
+              <div className="mt-5 flex items-center justify-between border-t border-[#8B9C8C]/12 pt-4">
+                <span className={`text-sm font-bold ${item.suggested ? "text-amber-200" : "text-[#9fe0a8]"}`}>
+                  {item.suggested ? "Suggested" : "Signal found"}
+                </span>
+                <ArrowRight size={18} strokeWidth={1.8} className="text-[#8B9C8C] transition group-hover:translate-x-1 group-hover:text-[#90ee9a]" aria-hidden="true" />
+              </div>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function TopImprovementsSection({ report, visibleRecommendations, hiddenCount }) {
+  const primary = visibleRecommendations[0];
+  const hiddenRecommendations = report.recommendations.slice(1);
+  const hiddenPreview = hiddenRecommendations.slice(0, 3);
+  const remainingHidden = Math.max(hiddenRecommendations.length - hiddenPreview.length, 0);
+  const hiddenLabel = hiddenCount === 1 ? "hidden improvement" : "hidden improvements";
+
+  if (!primary) return null;
+
+  return (
+    <section className={`${styles.pageContainer} mx-auto px-5 py-8 sm:px-8`}>
+      <div className="mb-7">
+        <div className="flex items-center gap-4">
+          <span className="h-9 w-1 rounded-full bg-[#90ee9a]" />
+          <h2 className="text-3xl font-semibold tracking-tight text-white">Top Improvements</h2>
+        </div>
+        <p className="mt-3 max-w-2xl text-base leading-7 text-[#d9e1d8]/68">
+          Prioritized fixes ranked by expected AI readiness impact.
+        </p>
+      </div>
+
+      <div className="grid gap-6">
+        <article className="relative overflow-hidden rounded-[2rem] border border-[#8B9C8C]/16 bg-[linear-gradient(135deg,rgba(8,17,14,.94),rgba(4,8,6,.97))] p-6 shadow-[0_24px_80px_rgba(0,0,0,.28)] sm:p-8">
+          <div className="pointer-events-none absolute inset-0 opacity-25 [background-image:radial-gradient(circle_at_center,rgba(144,238,154,.12)_1px,transparent_1.5px)] [background-size:20px_20px] [mask-image:linear-gradient(90deg,black,transparent_70%)]" />
+          <div className="relative grid gap-7 lg:grid-cols-[minmax(0,1fr)_15rem] lg:items-center">
+            <div>
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+                <span className="grid size-14 place-items-center rounded-2xl border border-[#90ee9a]/22 bg-[#90ee9a]/10 text-[#90ee9a]">
+                  <Sparkles size={29} strokeWidth={1.75} aria-hidden="true" />
+                </span>
                 <div>
-                  <h3 className="text-lg font-semibold text-white">{item.title}</h3>
-                  <p className="mt-2 text-sm leading-6 text-slate-300">{item.description}</p>
-                  <div className="mt-4 grid gap-3 text-sm md:grid-cols-3">
-                    <Info label="Current Status" value={item.currentStatus} />
-                    <Info label="Why AI Cares" value={item.whyAiCares} />
-                    <Info label="How To Fix" value={item.howToFix} />
-                  </div>
-                </div>
-                <div className={`${styles.gainPanel} rounded-2xl p-4 text-sm`}>
-                  <p className="text-[#c7d0c6]">Expected Score Gain</p>
-                  <p className="mt-2 text-3xl font-semibold text-[#9fe0a8]">+{item.expectedGain}</p>
-                  <p className="mt-1 text-xs uppercase tracking-[0.18em] text-[#8B9C8C]">Points</p>
+                  <span className="inline-flex rounded-full border border-amber-300/22 bg-amber-300/12 px-3 py-1 text-xs font-bold uppercase tracking-[0.16em] text-amber-200">
+                    High priority
+                  </span>
+                  <h3 className="mt-3 text-2xl font-semibold leading-tight text-white sm:text-3xl">{primary.title}</h3>
                 </div>
               </div>
-            </Card>
-          ))}
-          {hiddenCount > 0 && (
-            <div className={`${styles.lockedPanel} rounded-[2rem] p-6`}>
-              <div className="relative grid gap-6 lg:grid-cols-[1fr_28rem] lg:items-center">
-                <div>
-                  <p className="text-sm uppercase tracking-[0.26em] text-[#d9e1d8]">More available</p>
-                  <h3 className={`${styles.heroTitle} mt-3 text-3xl font-semibold text-white`}>
-                    {hiddenCount} more AI-readiness fixes are ready.
-                  </h3>
-                  <p className="mt-3 max-w-2xl text-sm leading-6 text-[#c7d0c6]">
-                    Enter your email to receive the complete report with all recommendations, platform scores, technical checks and a call request flag for follow-up.
-                  </p>
-                  {report.quickWins.length > 0 && (
-                    <div className="mt-5 flex flex-wrap gap-2">
-                      {report.quickWins.slice(0, 3).map((item) => (
-                        <span key={item.title} className="rounded-full border border-[#8B9C8C]/20 bg-[#8B9C8C]/10 px-3 py-1 text-xs text-[#d9e1d8]">
-                          {item.title}
-                        </span>
-                      ))}
+              <p className="mt-5 max-w-4xl text-base leading-8 text-[#d9e1d8]/78">{primary.description}</p>
+
+              <div className="mt-6 grid gap-5 border-t border-[#8B9C8C]/12 pt-6 md:grid-cols-3">
+                <ImprovementInfo icon={CircleAlert} tone="rose" label="Current Status" value={primary.currentStatus} />
+                <ImprovementInfo icon={Bot} tone="blue" label="Why AI Cares" value={primary.whyAiCares} />
+                <ImprovementInfo icon={CheckCircle2} tone="green" label="How To Fix" value={primary.howToFix} />
+              </div>
+            </div>
+
+            <div className="rounded-[1.6rem] border border-[#8B9C8C]/18 bg-[radial-gradient(circle_at_top_right,rgba(144,238,154,.18),transparent_8rem),rgba(7,16,14,.82)] p-5 text-center">
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#d9e1d8]/62">Expected Score Gain</p>
+              <div className="mx-auto mt-5 grid size-32 place-items-center rounded-full bg-[conic-gradient(#90ee9a_calc(var(--gain)*1%),rgba(139,156,140,.18)_0)] p-3" style={{ "--gain": Math.min(100, Math.max(12, primary.expectedGain * 10)) }}>
+                <div className="grid size-full place-items-center rounded-full bg-[#020806]">
+                  <div>
+                    <p className="text-4xl font-semibold text-[#90ee9a]">+{primary.expectedGain}</p>
+                    <p className="mt-1 text-xs uppercase tracking-[0.18em] text-[#d9e1d8]/54">Points</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        {hiddenCount > 0 && (
+          <div className={`${styles.lockedPanel} rounded-[2rem] p-0`}>
+            <div className="relative grid overflow-hidden rounded-[2rem] lg:grid-cols-[minmax(0,1fr)_30rem]">
+              <div className={`${styles.lockedPanelInfo} p-6 sm:p-8`}>
+                <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <span className="inline-flex rounded-full border border-[#90ee9a]/22 bg-[#90ee9a]/8 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-[#9fe0a8]">
+                      Locked recommendations
+                    </span>
+                    <h3 className={`${styles.heroTitle} mt-4 text-3xl font-semibold leading-tight text-white sm:text-4xl`}>
+                      You are seeing only the first fix.
+                    </h3>
+                    <p className="mt-4 max-w-2xl text-base leading-8 text-[#d9e1d8]/72">
+                      Unlock {hiddenCount} more AI-readiness {hiddenCount === 1 ? "fix" : "fixes"} with exact status, AI rationale, implementation steps and expected score gain.
+                    </p>
+                  </div>
+                  <div className="shrink-0 rounded-[1.5rem] border border-[#90ee9a]/18 bg-[#90ee9a]/10 px-5 py-4 text-center shadow-[0_0_38px_rgba(144,238,154,.08)]">
+                    <p className="text-4xl font-semibold text-[#90ee9a]">+{hiddenCount}</p>
+                    <p className="mt-1 text-[0.65rem] font-bold uppercase tracking-[0.2em] text-[#d9e1d8]/60">{hiddenLabel}</p>
+                  </div>
+                </div>
+
+                <div className="mt-7 grid gap-3">
+                  {hiddenPreview.map((item, index) => (
+                    <div key={item.title} className={`${styles.lockedTeaser} flex items-center gap-4 rounded-2xl p-4`}>
+                      <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-[#020806] text-[#90ee9a]">
+                        <Lock size={20} strokeWidth={1.9} aria-hidden="true" />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold text-white">{item.title}</p>
+                        <p className="mt-1 text-xs leading-5 text-[#d9e1d8]/58">Hidden fix #{index + 2} • expected gain +{item.expectedGain || 1} points</p>
+                      </div>
+                      <ArrowRight size={18} strokeWidth={1.8} className="hidden shrink-0 text-[#90ee9a] sm:block" aria-hidden="true" />
+                    </div>
+                  ))}
+                  {remainingHidden > 0 && (
+                    <div className="flex items-center justify-between rounded-2xl border border-dashed border-[#90ee9a]/24 bg-[#90ee9a]/6 px-4 py-3 text-sm font-semibold text-[#d9e1d8]">
+                      <span>Plus {remainingHidden} more locked recommendations</span>
+                      <span className="text-[#90ee9a]">After email</span>
                     </div>
                   )}
                 </div>
-                <EmailCapture report={report} compact />
+
+                <div className="mt-7 grid gap-4 border-t border-[#8B9C8C]/12 pt-6 sm:grid-cols-2 lg:grid-cols-4">
+                  {[
+                    [FileText, "Full Report", "Detailed findings"],
+                    [TrendingUp, "Platform Scores", "Compare AI systems"],
+                    [ShieldCheck, "Technical Checks", "Complete coverage"],
+                    [UserRound, "Expert Support", "Call available"],
+                  ].map(([Icon, title, copy]) => (
+                    <div key={title} className="flex gap-3">
+                      <Icon size={22} strokeWidth={1.8} className="shrink-0 text-[#90ee9a]" aria-hidden="true" />
+                      <div>
+                        <p className="text-sm font-semibold text-white">{title}</p>
+                        <p className="mt-1 text-xs leading-5 text-[#d9e1d8]/58">{copy}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className={`${styles.lockedPanelForm} border-t border-[#8B9C8C]/12 p-6 sm:p-8 lg:border-l lg:border-t-0`}>
+                <div className="mb-5 flex items-center gap-4">
+                  <span className="grid size-12 place-items-center rounded-2xl border border-[#90ee9a]/30 bg-[#90ee9a]/12 text-[#90ee9a] shadow-[0_0_28px_rgba(144,238,154,.12)]">
+                    <Mail size={25} strokeWidth={1.75} aria-hidden="true" />
+                  </span>
+                  <div>
+                    <p className="text-sm font-bold uppercase tracking-[0.2em] text-[#90ee9a]">Unlock hidden fixes</p>
+                    <p className="mt-1 text-sm text-[#d9e1d8]/62">{hiddenCount} more {hiddenCount === 1 ? "recommendation" : "recommendations"} available</p>
+                  </div>
+                </div>
+                <EmailCapture report={report} compact bare buttonLabel={`Unlock ${hiddenCount} Hidden ${hiddenCount === 1 ? "Fix" : "Fixes"}`} />
+                <div className="mt-5 flex gap-3 rounded-2xl bg-[#07100e]/70 p-4 text-sm leading-6 text-[#d9e1d8]/68">
+                  <Lock size={21} strokeWidth={1.8} className="mt-0.5 shrink-0 text-[#90ee9a]" aria-hidden="true" />
+                  <p>Your data is secure and never shared. Includes platform scores, checklist, and recommendations.</p>
+                </div>
               </div>
             </div>
-          )}
-        </div>
-      </Section>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
 
-      <Section title="Content Opportunities">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {report.contentOpportunities.map((item) => (
-            <div key={item.page} className={`${styles.softGlass} rounded-2xl p-4`}>
-              <p className="font-semibold text-white">{item.page}</p>
-              <p className={`mt-2 text-sm ${item.suggested ? "text-amber-200" : "text-emerald-200"}`}>{item.suggested ? "Suggested" : "Signal found"}</p>
-            </div>
-          ))}
-        </div>
-      </Section>
+function ImprovementInfo({ icon: Icon, tone, label, value }) {
+  const tones = {
+    rose: "border-rose-300/30 bg-rose-300/10 text-rose-200",
+    blue: "border-sky-300/28 bg-sky-300/10 text-sky-200",
+    green: "border-[#90ee9a]/30 bg-[#90ee9a]/10 text-[#90ee9a]",
+  };
 
-    </motion.div>
+  return (
+    <div className="flex gap-4 md:border-l md:border-[#8B9C8C]/14 md:pl-5 first:md:border-l-0 first:md:pl-0">
+      <span className={`grid size-12 shrink-0 place-items-center rounded-full border ${tones[tone]}`}>
+        <Icon size={24} strokeWidth={1.8} aria-hidden="true" />
+      </span>
+      <div>
+        <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#8B9C8C]">{label}</p>
+        <p className="mt-2 text-sm leading-7 text-[#d9e1d8]/78">{value}</p>
+      </div>
+    </div>
   );
 }
 
@@ -675,7 +851,7 @@ function TechnicalAuditSection({ report }) {
         </div>
       </div>
 
-      <div className="relative overflow-hidden rounded-[2rem] border border-[#8B9C8C]/14 bg-[linear-gradient(135deg,rgba(9,20,17,.92),rgba(3,7,6,.96))] p-5 shadow-[0_24px_80px_rgba(0,0,0,.28)] sm:p-7">
+      <div className="relative overflow-hidden rounded-[2rem] bg-black p-5 shadow-[0_24px_80px_rgba(0,0,0,.28)] sm:p-7">
         <div className="pointer-events-none absolute inset-0 opacity-25 [background-image:radial-gradient(circle_at_center,rgba(144,238,154,.13)_1px,transparent_1.5px)] [background-size:20px_20px] [mask-image:linear-gradient(90deg,black,transparent_70%)]" />
         <div className="relative grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           {checks.map(([key, value]) => (
@@ -731,7 +907,7 @@ function TechnicalAuditSection({ report }) {
 function AuditCard({ title, score, lines, icon: Icon = FileText }) {
   const tone = auditTone(score);
   return (
-    <article className="rounded-[1.4rem] border border-[#8B9C8C]/13 bg-[#07100e]/72 p-5 shadow-[inset_0_1px_0_rgba(255,255,255,.035)]">
+    <article className="rounded-[1.4rem] bg-black p-5 shadow-[inset_0_1px_0_rgba(255,255,255,.035)]">
       <div className="flex items-start justify-between gap-4">
         <div className="flex min-w-0 items-center gap-4">
           <span className={`grid size-12 shrink-0 place-items-center rounded-2xl border ${tone.border} ${tone.bg} ${tone.icon}`}>
@@ -818,7 +994,7 @@ function EmailCapture({ report, compact = false, title = "Want a detailed AI Rea
             />
             {errors.email && <p className="mt-2 text-sm text-rose-300">{errors.email.message}</p>}
           </div>
-          <button disabled={isSubmitting} className="h-14 rounded-2xl bg-[#8B9C8C] px-6 font-semibold text-[#020302] transition hover:bg-[#aab7ab] disabled:opacity-60">
+          <button disabled={isSubmitting} className="h-14 rounded-2xl bg-[#9fe0a8] px-6 font-semibold text-[#020302] shadow-[0_0_32px_rgba(159,224,168,.18)] transition hover:bg-[#b8f4bf] disabled:opacity-60">
             {isSubmitting ? "Sending..." : buttonLabel || (compact ? "Unlock Report" : "Send My Report")}
           </button>
         </div>
@@ -1045,7 +1221,7 @@ export default function Home() {
                 <Layers3 size={25} strokeWidth={1.8} aria-hidden="true" />
               </span>
             </div>
-            <div className="grid gap-3">
+            <div className={styles.scanFlowList}>
               {scanFlow.map(([number, title, copy]) => (
                 <article key={title} className={styles.flowStep}>
                   <span>{number}</span>

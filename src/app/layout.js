@@ -1,4 +1,5 @@
 import { Geist_Mono, Space_Grotesk } from "next/font/google";
+import Script from "next/script";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { contactEmail, defaultDescription, defaultKeywords, siteName, siteUrl } from "./seo";
@@ -216,6 +217,15 @@ export default function RootLayout({ children }) {
             __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c"),
           }}
         />
+        <Script src="https://www.googletagmanager.com/gtag/js?id=G-B55C4PTHMN" strategy="afterInteractive" />
+        <Script id="google-analytics" strategy="afterInteractive">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', 'G-B55C4PTHMN');
+          `}
+        </Script>
         {children}
         <Analytics />
         <SpeedInsights />

@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ArrowRight, BadgeCheck, BarChart3, CalendarClock, CheckCircle2, CircleAlert, FileText, Globe2, Lightbulb, MailCheck, RefreshCw, ShieldCheck, Sparkles, Wrench } from "lucide-react";
 import SiteFooter from "@/app/_components/SiteFooter";
 import SiteHeader from "@/app/_components/SiteHeader";
 import { createPageMetadata } from "@/app/seo";
@@ -25,9 +26,91 @@ function Field({ label, value }) {
   );
 }
 
+function SectionTitle({ kicker, title, copy }) {
+  return (
+    <div className={styles.sectionTitle}>
+      <span>{kicker}</span>
+      <h2>{title}</h2>
+      {copy && <p>{copy}</p>}
+    </div>
+  );
+}
+
+function formatDateTime(value) {
+  if (!value) return "Not available";
+  return new Intl.DateTimeFormat("en-US", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
+}
+
 function formatScoreLabel(key) {
   if (key === "eeat") return "EEAT";
   return String(key || "").replace(/^\w/, (char) => char.toUpperCase());
+}
+
+function getScoreTone(score) {
+  const value = Number(score) || 0;
+  if (value >= 80) return "strong";
+  if (value >= 60) return "watch";
+  return "risk";
+}
+
+function PlatformCard({ item }) {
+  const tone = getScoreTone(item.score);
+  return (
+    <article className={styles.platformCard}>
+      <div>
+        <span className={styles.platformName}>{item.platform}</span>
+        <p className={styles.platformStatus}>{item.status || "Calculated from scan signals"}</p>
+      </div>
+      <div
+        className={`${styles.scorePill} ${styles[tone]}`}
+        style={{ "--platform-score": Math.min(100, Math.max(0, Number(item.score) || 0)) }}
+      >
+        <strong>{item.score}%</strong>
+      </div>
+    </article>
+  );
+}
+
+function RecommendationCard({ item, index }) {
+  const gain = Number(item.expectedGain) || 1;
+  return (
+    <article className={styles.recommendationCard}>
+      <div className={styles.recommendationTop}>
+        <div className={styles.recommendationIcon}>
+          {index === 0 ? <Sparkles size={24} aria-hidden="true" /> : <Lightbulb size={24} aria-hidden="true" />}
+        </div>
+        <div>
+          <span>{index === 0 ? "Highest impact" : `Priority ${index + 1}`}</span>
+          <h3>{item.title}</h3>
+          <p>{item.description}</p>
+        </div>
+        <div className={styles.gainBadge}>
+          <strong>+{gain}</strong>
+          <span>points</span>
+        </div>
+      </div>
+      <div className={styles.recommendationGrid}>
+        <div>
+          <CircleAlert size={20} aria-hidden="true" />
+          <span>Current status</span>
+          <p>{item.currentStatus}</p>
+        </div>
+        <div>
+          <BadgeCheck size={20} aria-hidden="true" />
+          <span>Why AI cares</span>
+          <p>{item.whyAiCares}</p>
+        </div>
+        <div>
+          <Wrench size={20} aria-hidden="true" />
+          <span>How to fix</span>
+          <p>{item.howToFix}</p>
+        </div>
+      </div>
+    </article>
+  );
 }
 
 async function getReportLead(id) {
@@ -102,51 +185,76 @@ export default async function ReportPage({ params, searchParams }) {
   const recommendations = Array.isArray(report.recommendations) ? report.recommendations : [];
   const platforms = Array.isArray(report.platformScores) ? report.platformScores : [];
   const scoreBreakdown = report.scoreBreakdown || {};
+  const scannedAt = report.scannedAt ? formatDateTime(report.scannedAt) : "Not available";
+  const finalUrl = report.finalUrl || website;
 
   return (
     <main className={styles.page}>
-      <SiteHeader className="mx-auto mb-8 w-full" />
-      <div className={styles.actions}>
-        <Link className={styles.action} href="/">Run New Scan</Link>
-        <PrintButton className={styles.action} />
+      <div className={styles.backdrop} aria-hidden="true" />
+      <div className={styles.topbar}>
+        <SiteHeader className="mx-auto w-full" />
+        <div className={styles.actions}>
+          <Link className={styles.action} href="/"><RefreshCw size={18} aria-hidden="true" />Run New Scan</Link>
+          <PrintButton className={styles.action} />
+        </div>
       </div>
 
       <section className={styles.hero}>
-        <p>ScanSiteAI report</p>
-        <h1>{website}</h1>
-        <div className={styles.score}>
-          <strong>{overallScore}</strong>
-          <span>Overall Score / 100</span>
+        <div className={styles.heroContent}>
+          <p className={styles.eyebrow}>ScanSiteAI report</p>
+          <h1>AI Website Readiness Report</h1>
+          <a className={styles.websiteLink} href={website} target="_blank" rel="noreferrer">
+            <Globe2 size={18} aria-hidden="true" />
+            {website}
+          </a>
+          <p className={styles.heroCopy}>
+            A client-ready summary of crawler access, answer-engine readability, trust signals, AI platform readiness and prioritized fixes.
+          </p>
+          <div className={styles.metaStrip}>
+            <span><CalendarClock size={18} aria-hidden="true" />{scannedAt}</span>
+            <span><MailCheck size={18} aria-hidden="true" />Call requested: {wantsCall ? "Yes" : "No"}</span>
+          </div>
+        </div>
+        <div className={styles.scorePanel}>
+          <div className={styles.scoreRing} style={{ "--score": `${Math.min(100, Math.max(0, Number(overallScore) || 0))}%` }}>
+            <div>
+              <strong>{overallScore}</strong>
+              <span>Grade {report.grade || "N/A"}</span>
+            </div>
+          </div>
+          <p>Overall AI readiness score calculated from live scan signals.</p>
         </div>
       </section>
 
       <section className={styles.grid}>
         <Field label="Grade" value={report.grade} />
-        <Field label="Final URL" value={report.finalUrl} />
+        <Field label="Final URL" value={finalUrl} />
         <Field label="Call Requested" value={wantsCall ? "Yes" : "No"} />
-        <Field label="Scanned At" value={report.scannedAt ? new Date(report.scannedAt).toLocaleString() : ""} />
+        <Field label="Scanned At" value={scannedAt} />
       </section>
 
       <section className={styles.section}>
-        <h2>AI Platform Scores</h2>
+        <SectionTitle
+          kicker="Platform readiness"
+          title="AI Platform Scores"
+          copy="Estimated from technical signals, structured data, crawl access, content clarity and entity confidence."
+        />
         <div className={styles.cards}>
-          {platforms.map((item) => (
-            <article key={item.platform}>
-              <span>{item.platform}</span>
-              <strong>{item.score}%</strong>
-              <p>{item.status}</p>
-            </article>
-          ))}
+          {platforms.map((item) => <PlatformCard key={item.platform} item={item} />)}
         </div>
       </section>
 
       <section className={styles.section}>
-        <h2>Score Breakdown</h2>
+        <SectionTitle
+          kicker="Signal breakdown"
+          title="Score Breakdown"
+          copy="Weighted audit categories used to calculate the report score."
+        />
         <div className={styles.bars}>
           {Object.entries(scoreBreakdown).map(([key, value]) => (
             <div key={key}>
               <span>{formatScoreLabel(key)}</span>
-              <div><i style={{ width: `${value}%` }} /></div>
+              <div><i style={{ width: `${Math.min(100, Math.max(0, Number(value) || 0))}%` }} /></div>
               <strong>{value}</strong>
             </div>
           ))}
@@ -154,22 +262,13 @@ export default async function ReportPage({ params, searchParams }) {
       </section>
 
       <section className={styles.section}>
-        <h2>Detailed Recommendations</h2>
+        <SectionTitle
+          kicker="Action plan"
+          title="Detailed Recommendations"
+          copy="Prioritized fixes written for implementation, not just scoring."
+        />
         <div className={styles.recommendations}>
-          {recommendations.map((item) => (
-            <article key={item.title}>
-              <h3>{item.title}</h3>
-              <p>{item.description}</p>
-              <dl>
-                <dt>Status</dt>
-                <dd>{item.currentStatus}</dd>
-                <dt>Why AI Cares</dt>
-                <dd>{item.whyAiCares}</dd>
-                <dt>How To Fix</dt>
-                <dd>{item.howToFix}</dd>
-              </dl>
-            </article>
-          ))}
+          {recommendations.map((item, index) => <RecommendationCard key={item.title} item={item} index={index} />)}
         </div>
       </section>
       <SiteFooter className="mx-auto mt-10 w-full" />
