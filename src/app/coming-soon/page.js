@@ -15,7 +15,7 @@ export default function ComingSoonPage() {
       sections={[
         {
           heading: "Need help now?",
-          copy: "Book a demo or email sohail@rebrandgurus.com to review your AI readiness report with Rebrand Gurus.",
+          copy: "Book a demo or email info@scansiteai.com to review your AI readiness report with Rebrand Gurus.",
           items: ["Live AI readiness scan", "Detailed report by email", "Demo and consultation request"],
         },
       ]}

@@ -1,7 +1,31 @@
+import Link from "next/link";
 import { connectToDatabase } from "@/lib/db";
 import Lead from "@/models/Lead";
 
 export const runtime = "nodejs";
+export const metadata = {
+  title: "Protected Leads",
+  description: "Protected lead management view for ScanSite AI report requests.",
+  alternates: { canonical: "/leads" },
+  robots: { index: false, follow: false },
+};
+
+function formatDateTime(value) {
+  const date = value ? new Date(value) : null;
+  if (!date || Number.isNaN(date.getTime())) return { date: "Not available", time: "Not available" };
+
+  return {
+    date: date.toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    }),
+    time: date.toLocaleTimeString("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+    }),
+  };
+}
 
 export default async function LeadsPage({ searchParams }) {
   const params = await searchParams;
@@ -22,39 +46,125 @@ export default async function LeadsPage({ searchParams }) {
   const leads = await Lead.find({})
     .sort({ updatedAt: -1 })
     .limit(100)
-    .select("email website overallScore wantsCall emailSent submissionCount createdAt updatedAt lastSubmittedAt")
+    .select("email website overallScore wantsCall emailSent submissionCount createdAt updatedAt lastSubmittedAt reportUrl submissions report")
     .lean();
 
+  const entries = leads
+    .flatMap((lead) => {
+      const leadId = String(lead._id);
+      const submissions = Array.isArray(lead.submissions) ? lead.submissions : [];
+
+      if (submissions.length) {
+        return submissions.map((submission, index) => ({
+          id: `${leadId}-${index}`,
+          leadId,
+          submissionIndex: index,
+          email: submission.email || lead.email,
+          website: submission.website || lead.website,
+          overallScore: submission.overallScore ?? lead.overallScore,
+          grade: submission.grade || submission.report?.grade || lead.report?.grade || "N/A",
+          wantsCall: Boolean(submission.wantsCall),
+          emailSent: Boolean(submission.emailSent),
+          submittedAt: submission.submittedAt || lead.lastSubmittedAt || lead.createdAt,
+          hasReport: Boolean(submission.report && Object.keys(submission.report).length),
+        }));
+      }
+
+      return [{
+        id: leadId,
+        leadId,
+        submissionIndex: "",
+        email: lead.email,
+        website: lead.website,
+        overallScore: lead.overallScore,
+        grade: lead.report?.grade || "N/A",
+        wantsCall: Boolean(lead.wantsCall),
+        emailSent: Boolean(lead.emailSent),
+        submittedAt: lead.lastSubmittedAt || lead.createdAt,
+        hasReport: Boolean(lead.report && Object.keys(lead.report).length),
+      }];
+    })
+    .sort((a, b) => new Date(b.submittedAt || 0) - new Date(a.submittedAt || 0));
+
+  const callRequests = entries.filter((entry) => entry.wantsCall).length;
+  const sentReports = entries.filter((entry) => entry.emailSent).length;
+
   return (
-    <main className="min-h-screen bg-[#020302] px-6 py-10 text-white">
-      <section className="mx-auto max-w-7xl">
-        <h1 className="text-4xl font-semibold">Leads</h1>
-        <p className="mt-2 text-slate-400">Latest report requests and call requests.</p>
-        <div className="mt-8 overflow-hidden rounded-3xl border border-white/10">
-          <table className="w-full min-w-[900px] border-collapse bg-white/[0.03] text-left text-sm">
-            <thead className="bg-white/[0.06] text-slate-300">
+    <main className="min-h-screen bg-[#020302] px-5 py-10 text-white sm:px-8">
+      <section className="mx-auto max-w-[1300px]">
+        <div className="flex flex-col gap-5 border-b border-[#8B9C8C]/15 pb-8 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p className="text-sm uppercase tracking-[0.28em] text-[#8B9C8C]">Lead Inbox</p>
+            <h1 className="mt-3 text-4xl font-semibold tracking-tight sm:text-6xl">Submitted Emails</h1>
+            <p className="mt-4 max-w-2xl text-sm leading-7 text-[#d9e1d8]/72">
+              Review every report request with date, time, website, score and the complete report link.
+            </p>
+          </div>
+          <Link href="/" className="inline-flex w-fit rounded-full bg-[#9fe0a8] px-5 py-3 text-sm font-bold text-[#020302]">
+            Run New Scan
+          </Link>
+        </div>
+
+        <div className="grid gap-4 py-8 sm:grid-cols-3">
+          {[
+            ["Total entries", entries.length],
+            ["Reports sent", sentReports],
+            ["Call requests", callRequests],
+          ].map(([label, value]) => (
+            <div key={label} className="border-l border-[#8B9C8C]/20 py-1 pl-5">
+              <p className="text-3xl font-semibold text-[#9fe0a8]">{value}</p>
+              <p className="mt-1 text-sm text-[#d9e1d8]/62">{label}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="overflow-x-auto border-t border-[#8B9C8C]/15">
+          <table className="w-full min-w-[1080px] border-collapse text-left text-sm">
+            <thead className="text-[#8B9C8C]">
               <tr>
-                <th className="p-4">Email</th>
-                <th className="p-4">Website</th>
-                <th className="p-4">Score</th>
-                <th className="p-4">Call</th>
-                <th className="p-4">Email Sent</th>
-                <th className="p-4">Submits</th>
-                <th className="p-4">Report</th>
+                <th className="py-4 pr-5 font-semibold">Email</th>
+                <th className="px-5 py-4 font-semibold">Website</th>
+                <th className="px-5 py-4 font-semibold">Date</th>
+                <th className="px-5 py-4 font-semibold">Time</th>
+                <th className="px-5 py-4 font-semibold">Score</th>
+                <th className="px-5 py-4 font-semibold">Call</th>
+                <th className="px-5 py-4 font-semibold">Email</th>
+                <th className="py-4 pl-5 text-right font-semibold">Complete Report</th>
               </tr>
             </thead>
             <tbody>
-              {leads.map((lead) => (
-                <tr key={String(lead._id)} className="border-t border-white/10">
-                  <td className="p-4">{lead.email}</td>
-                  <td className="p-4">{lead.website}</td>
-                  <td className="p-4">{lead.overallScore}</td>
-                  <td className="p-4">{lead.wantsCall ? "Yes" : "No"}</td>
-                  <td className="p-4">{lead.emailSent ? "Yes" : "No"}</td>
-                  <td className="p-4">{lead.submissionCount}</td>
-                  <td className="p-4"><a className="text-[#8B9C8C]" href={`/report/${lead._id}`}>Open</a></td>
+              {entries.map((entry) => {
+                const submitted = formatDateTime(entry.submittedAt);
+                const reportHref = entry.submissionIndex === ""
+                  ? `/report/${entry.leadId}`
+                  : `/report/${entry.leadId}?submission=${entry.submissionIndex}`;
+
+                return (
+                <tr key={entry.id} className="border-t border-[#8B9C8C]/12 text-[#d9e1d8]">
+                  <td className="max-w-[260px] py-5 pr-5 font-semibold text-white">{entry.email}</td>
+                  <td className="max-w-[290px] px-5 py-5">
+                    <span className="line-clamp-2 break-all">{entry.website}</span>
+                  </td>
+                  <td className="px-5 py-5">{submitted.date}</td>
+                  <td className="px-5 py-5">{submitted.time}</td>
+                  <td className="px-5 py-5">
+                    <span className="font-semibold text-[#9fe0a8]">{entry.overallScore}</span>
+                    <span className="ml-2 text-xs text-[#8B9C8C]">Grade {entry.grade}</span>
+                  </td>
+                  <td className="px-5 py-5">{entry.wantsCall ? "Yes" : "No"}</td>
+                  <td className="px-5 py-5">{entry.emailSent ? "Sent" : "Pending"}</td>
+                  <td className="py-5 pl-5 text-right">
+                    {entry.hasReport ? (
+                      <Link className="inline-flex rounded-full border border-[#9fe0a8]/35 px-4 py-2 text-sm font-semibold text-[#9fe0a8] transition hover:bg-[#9fe0a8] hover:text-[#020302]" href={reportHref}>
+                        Complete Report
+                      </Link>
+                    ) : (
+                      <span className="text-[#d9e1d8]/45">No report</span>
+                    )}
+                  </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>

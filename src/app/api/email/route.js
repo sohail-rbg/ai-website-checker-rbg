@@ -62,33 +62,7 @@ function formatScoreLabel(key) {
 
 function sanitizeReportForStorage(report) {
   if (!report || typeof report !== "object") return {};
-
-  const cleaned = {
-    scannedUrl: report.scannedUrl,
-    finalUrl: report.finalUrl,
-    scannedAt: report.scannedAt,
-    overallScore: report.overallScore,
-    grade: report.grade,
-    scoreBreakdown: report.scoreBreakdown || {},
-    platformScores: Array.isArray(report.platformScores) ? report.platformScores : [],
-    recommendations: Array.isArray(report.recommendations) ? report.recommendations.slice(0, 12) : [],
-    quickWins: Array.isArray(report.quickWins) ? report.quickWins.slice(0, 6) : [],
-    contentOpportunities: Array.isArray(report.contentOpportunities) ? report.contentOpportunities : [],
-    metadata: report.metadata || {},
-    schema: report.schema || {},
-    headings: report.headings || {},
-    images: report.images || {},
-    links: report.links ? { ...report.links, sampleInternal: Array.isArray(report.links.sampleInternal) ? report.links.sampleInternal.slice(0, 10) : [] } : {},
-    content: report.content ? { ...report.content, text: undefined } : {},
-    eeat: report.eeat || {},
-    performance: report.performance || {},
-    entities: report.entities || {},
-    robots: report.robots ? { ...report.robots, raw: undefined } : {},
-    sitemap: report.sitemap || {},
-    checklist: report.checklist || {},
-  };
-
-  return JSON.parse(JSON.stringify(cleaned));
+  return JSON.parse(JSON.stringify(report));
 }
 
 function databaseErrorPayload(error, code) {
@@ -353,6 +327,12 @@ export async function POST(request) {
       : Array.isArray(fullReport.recommendations)
         ? fullReport.recommendations.slice(0, 10).map((item) => item.title)
         : [];
+    const submittedAt = new Date();
+    const summary = {
+      grade: body.grade,
+      topImprovements,
+      platformScores: body.platformScores || {},
+    };
 
     if (!validateEmail(email)) {
       return Response.json({ error: "Please enter a valid email address." }, { status: 400 });
@@ -376,17 +356,26 @@ export async function POST(request) {
           $set: {
             overallScore,
             wantsCall: Boolean(body.wantsCall),
-            lastSubmittedAt: new Date(),
-            summary: {
-              grade: body.grade,
-              topImprovements,
-              platformScores: body.platformScores || {},
-            },
+            lastSubmittedAt: submittedAt,
+            summary,
             report: fullReport,
           },
           $inc: { submissionCount: 1 },
+          $push: {
+            submissions: {
+              submittedAt,
+              email,
+              website,
+              overallScore,
+              grade: body.grade,
+              wantsCall: Boolean(body.wantsCall),
+              topImprovements,
+              platformScores: body.platformScores || {},
+              report: fullReport,
+            },
+          },
         },
-        { upsert: true, new: true, setDefaultsOnInsert: true }
+        { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
       );
     } catch (error) {
       console.error("Lead save failed", error);
@@ -429,7 +418,7 @@ export async function POST(request) {
       }, "user report");
       delivery.userSent = userDelivery.ok;
 
-      const adminEmail = process.env.ADMIN_NOTIFY_EMAIL?.trim() || "sohail@rebrandgurus.com";
+      const adminEmail = process.env.ADMIN_NOTIFY_EMAIL?.trim() || "info@scansiteai.com";
       const adminReport = buildAdminLeadEmail({
         email,
         website,
@@ -457,7 +446,23 @@ export async function POST(request) {
     try {
       await Lead.updateOne(
         { _id: lead._id },
-        { $set: { emailSent, emailDelivery: delivery } }
+        {
+          $set: {
+            reportUrl,
+            emailSent,
+            emailDelivery: delivery,
+          },
+        }
+      );
+      await Lead.updateOne(
+        { _id: lead._id, "submissions.submittedAt": submittedAt },
+        {
+          $set: {
+            "submissions.$.reportUrl": reportUrl,
+            "submissions.$.emailSent": emailSent,
+            "submissions.$.emailDelivery": delivery,
+          },
+        }
       );
     } catch (error) {
       console.error("Lead email delivery status update failed", error);

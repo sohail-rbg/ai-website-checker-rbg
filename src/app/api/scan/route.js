@@ -30,9 +30,13 @@ export async function POST(request) {
     const report = await scanWebsite(body?.url);
     return Response.json({ report });
   } catch (error) {
-    console.error("Scan API failed", error);
     const message = error?.message || "We could not scan this website. Please try again.";
-    const isUserFixable = /(invalid|offline|timeout|timed out|blocked|ssl|private|localhost|unable to reach)/i.test(message);
+    const isUserFixable = /(invalid|please enter|website url|offline|timeout|timed out|blocked|ssl|private|localhost|unable to reach)/i.test(message);
+    if (isUserFixable) {
+      console.warn("Scan request rejected", message);
+    } else {
+      console.error("Scan API failed", error);
+    }
     return errorResponse(message, isUserFixable ? 400 : 500);
   }
 }

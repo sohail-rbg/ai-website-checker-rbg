@@ -1,4 +1,4 @@
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://ai-website-checker.vercel.app";
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://scansiteai.com";
 
 export default function robots() {
   const allowedBots = [

@@ -7,10 +7,24 @@ import { assertPublicUrl } from "./security";
 
 const BOT_AGENTS = ["GPTBot", "ClaudeBot", "Googlebot", "Google-Extended", "PerplexityBot", "CCBot", "Amazonbot", "Applebot"];
 const SCHEMA_TYPES = ["Organization", "Person", "Article", "FAQPage", "Service", "Product", "Review", "LocalBusiness", "BreadcrumbList", "Recipe", "HowTo", "Event", "VideoObject", "JobPosting", "Course"];
-const USER_AGENT = "AIWebsiteReadinessChecker/1.0 (+https://example.com)";
+const USER_AGENT = "AIWebsiteReadinessChecker/1.0 (+https://scansiteai.com)";
+const BROWSER_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36";
 const REQUEST_TIMEOUT = 6000;
 const LIGHTHOUSE_TIMEOUT = 18000;
 const MAX_REDIRECTS = 5;
+const DEFAULT_HEADERS = {
+  "User-Agent": USER_AGENT,
+  Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+  "Accept-Language": "en-US,en;q=0.9",
+};
+const BROWSER_HEADERS = {
+  "User-Agent": BROWSER_USER_AGENT,
+  Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+  "Accept-Language": "en-US,en;q=0.9",
+  "Cache-Control": "no-cache",
+  Pragma: "no-cache",
+  "Upgrade-Insecure-Requests": "1",
+};
 
 export function normalizeUrl(input) {
   const value = String(input || "").trim();
@@ -58,13 +72,14 @@ function timeoutAfter(ms, message) {
 
 async function fetchText(url, options = {}, redirectDepth = 0) {
   await assertPublicUrl(url);
+  const { headers = {}, ...requestOptions } = options;
   const response = await axios.get(url, {
     timeout: REQUEST_TIMEOUT,
     maxRedirects: 0,
     validateStatus: (status) => status < 500,
     responseType: "text",
-    headers: { "User-Agent": USER_AGENT, Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8" },
-    ...options,
+    headers: { ...DEFAULT_HEADERS, ...headers },
+    ...requestOptions,
   });
   if ([301, 302, 303, 307, 308].includes(response.status) && response.headers.location) {
     if (redirectDepth >= MAX_REDIRECTS) throw new Error("Too many redirects while scanning this website.");
@@ -73,6 +88,21 @@ async function fetchText(url, options = {}, redirectDepth = 0) {
   }
   response.finalUrl = response.config.url;
   return response;
+}
+
+async function fetchHomepage(url) {
+  const response = await fetchText(url);
+  if (response.status !== 403) return response;
+
+  const retry = await fetchText(url, {
+    headers: BROWSER_HEADERS,
+  });
+  retry.usedBrowserRetry = true;
+  return retry;
+}
+
+function blockedScanMessage(status) {
+  return `This website blocked automated scanning (HTTP ${status}). This usually happens when Cloudflare, a firewall, bot protection, or hosting security blocks server-side crawlers.`;
 }
 
 function analyzeMetadata($) {
@@ -592,10 +622,14 @@ export async function scanWebsite(inputUrl) {
   let response;
   try {
     const startedAt = Date.now();
-    response = await fetchText(url);
+    response = await fetchHomepage(url);
     response.durationMs = Date.now() - startedAt;
   } catch (error) {
     throw new Error(error.code === "ECONNABORTED" ? "The website timed out while scanning." : `Unable to reach the website: ${error.message}`);
+  }
+
+  if ([401, 403].includes(response.status)) {
+    throw new Error(blockedScanMessage(response.status));
   }
 
   if (response.status >= 400) {

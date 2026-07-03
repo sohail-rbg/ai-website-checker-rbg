@@ -27,7 +27,7 @@ The application analyzes whether ChatGPT, Claude, Gemini, Perplexity, Google AI 
 - email delivery of complete readiness reports
 
 ## Contact
-Email: sohail@rebrandgurus.com
+Email: info@scansiteai.com
 Provider: Rebrand Gurus
 `;
 

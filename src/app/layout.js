@@ -3,10 +3,11 @@ import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://ai-website-checker.vercel.app";
-const siteName = "AI Website Readiness Checker";
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://scansiteai.com";
+const siteName = "ScanSite AI";
+const contactEmail = "info@scansiteai.com";
 const description =
-  "AI Website Readiness Checker audits robots.txt, sitemap.xml, schema, metadata, content clarity, entities, EEAT and performance so answer engines can understand your website.";
+  "ScanSite AI audits robots.txt, sitemap.xml, schema, metadata, content clarity, entities, EEAT and performance so AI answer engines can understand your website.";
 
 const spaceGrotesk = Space_Grotesk({
   variable: "--font-space-grotesk",
@@ -22,11 +23,12 @@ export const metadata = {
   metadataBase: new URL(siteUrl),
   applicationName: siteName,
   title: {
-    default: "AI Website Readiness Checker | LLM Search Audit Tool",
-    template: "%s | AI Website Readiness Checker",
+    default: "ScanSite AI | AI Website Readiness Checker and LLM Search Audit",
+    template: "%s | ScanSite AI",
   },
   description,
   keywords: [
+    "ScanSite AI",
     "AI website readiness checker",
     "LLM SEO audit",
     "AI search optimization",
@@ -47,20 +49,20 @@ export const metadata = {
     locale: "en_US",
     url: "/",
     siteName,
-    title: "AI Website Readiness Checker",
+    title: "ScanSite AI - AI Website Readiness Checker",
     description,
     images: [
       {
         url: "/logo.png",
         width: 1200,
         height: 630,
-        alt: "AI Website Readiness Checker by Rebrand Gurus",
+        alt: "ScanSite AI website readiness checker",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "AI Website Readiness Checker",
+    title: "ScanSite AI - AI Website Readiness Checker",
     description,
     images: ["/logo.png"],
   },
@@ -88,13 +90,13 @@ export default function RootLayout({ children }) {
         name: "Rebrand Gurus",
         url: "https://rebrandgurus.com",
         logo: `${siteUrl}/logo.png`,
-        email: "sohail@rebrandgurus.com",
+        email: contactEmail,
         sameAs: ["https://rebrandgurus.com"],
         contactPoint: [
           {
             "@type": "ContactPoint",
             contactType: "AI readiness audit consultation",
-            email: "sohail@rebrandgurus.com",
+            email: contactEmail,
             availableLanguage: ["English"],
           },
         ],
@@ -151,7 +153,7 @@ export default function RootLayout({ children }) {
         "@type": "Person",
         "@id": `${siteUrl}/#founder`,
         name: "Md Sohail",
-        email: "sohail@rebrandgurus.com",
+        email: contactEmail,
         jobTitle: "SaaS Architect and AI Readiness Consultant",
         worksFor: {
           "@id": `${siteUrl}/#organization`,

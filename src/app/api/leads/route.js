@@ -17,13 +17,25 @@ export async function GET(request) {
   const leads = await Lead.find({})
     .sort({ updatedAt: -1 })
     .limit(100)
-    .select("email website overallScore wantsCall emailSent submissionCount createdAt updatedAt lastSubmittedAt summary")
+    .select("email website overallScore wantsCall emailSent submissionCount createdAt updatedAt lastSubmittedAt summary reportUrl report submissions")
     .lean();
 
   return Response.json({
     leads: leads.map((lead) => ({
-      ...lead,
       _id: String(lead._id),
+      email: lead.email,
+      website: lead.website,
+      overallScore: lead.overallScore,
+      wantsCall: lead.wantsCall,
+      emailSent: lead.emailSent,
+      submissionCount: lead.submissionCount,
+      createdAt: lead.createdAt,
+      updatedAt: lead.updatedAt,
+      lastSubmittedAt: lead.lastSubmittedAt,
+      summary: lead.summary,
+      reportUrl: lead.reportUrl,
+      hasReport: Boolean(lead.report && Object.keys(lead.report).length),
+      storedSubmissions: Array.isArray(lead.submissions) ? lead.submissions.length : 0,
     })),
   });
 }

@@ -43,14 +43,62 @@ async function getReportLead(id) {
   return lead;
 }
 
-export default async function ReportPage({ params }) {
+export async function generateMetadata({ params }) {
   const { id } = await params;
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return {
+      title: "AI Readiness Report Not Found",
+      description: "The requested ScanSite AI report could not be found.",
+      robots: { index: false, follow: false },
+    };
+  }
+
+  const lead = await getReportLead(id);
+  if (!lead) {
+    return {
+      title: "AI Readiness Report Not Found",
+      description: "The requested ScanSite AI report could not be found.",
+      robots: { index: false, follow: false },
+    };
+  }
+
+  const website = lead.website || "Website";
+  const score = Number.isFinite(Number(lead.overallScore)) ? `${lead.overallScore}/100` : "available";
+
+  return {
+    title: `${website} AI Readiness Report`,
+    description: `ScanSite AI readiness report for ${website}. Overall score ${score}, with AI platform scores, technical checks and prioritized recommendations.`,
+    alternates: { canonical: `/report/${id}` },
+    robots: { index: false, follow: true },
+    openGraph: {
+      title: `${website} AI Readiness Report`,
+      description: `Overall AI website readiness score: ${score}. Review crawler access, schema, EEAT, entities and content recommendations.`,
+      url: `/report/${id}`,
+    },
+    twitter: {
+      title: `${website} AI Readiness Report`,
+      description: `Overall AI website readiness score: ${score}.`,
+    },
+  };
+}
+
+export default async function ReportPage({ params, searchParams }) {
+  const { id } = await params;
+  const query = await searchParams;
   if (!mongoose.Types.ObjectId.isValid(id)) notFound();
 
   const lead = await getReportLead(id);
   if (!lead) notFound();
 
-  const report = lead.report || {};
+  const submissionIndex = Number(query?.submission);
+  const submissions = Array.isArray(lead.submissions) ? lead.submissions : [];
+  const selectedSubmission = Number.isInteger(submissionIndex) && submissionIndex >= 0
+    ? submissions[submissionIndex]
+    : null;
+  const report = selectedSubmission?.report || lead.report || {};
+  const website = selectedSubmission?.website || lead.website;
+  const overallScore = selectedSubmission?.overallScore ?? lead.overallScore;
+  const wantsCall = selectedSubmission ? selectedSubmission.wantsCall : lead.wantsCall;
   const recommendations = Array.isArray(report.recommendations) ? report.recommendations : [];
   const platforms = Array.isArray(report.platformScores) ? report.platformScores : [];
   const scoreBreakdown = report.scoreBreakdown || {};
@@ -65,9 +113,9 @@ export default async function ReportPage({ params }) {
 
       <section className={styles.hero}>
         <p>AI Website Readiness Checker</p>
-        <h1>{lead.website}</h1>
+        <h1>{website}</h1>
         <div className={styles.score}>
-          <strong>{lead.overallScore}</strong>
+          <strong>{overallScore}</strong>
           <span>Overall Score / 100</span>
         </div>
       </section>
@@ -75,7 +123,7 @@ export default async function ReportPage({ params }) {
       <section className={styles.grid}>
         <Field label="Grade" value={report.grade} />
         <Field label="Final URL" value={report.finalUrl} />
-        <Field label="Call Requested" value={lead.wantsCall ? "Yes" : "No"} />
+        <Field label="Call Requested" value={wantsCall ? "Yes" : "No"} />
         <Field label="Scanned At" value={report.scannedAt ? new Date(report.scannedAt).toLocaleString() : ""} />
       </section>
 
