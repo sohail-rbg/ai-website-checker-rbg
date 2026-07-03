@@ -1,13 +1,8 @@
 import { Geist_Mono, Space_Grotesk } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import { contactEmail, defaultDescription, defaultKeywords, siteName, siteUrl } from "./seo";
 import "./globals.css";
-
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://scansiteai.com";
-const siteName = "ScanSite AI";
-const contactEmail = "info@scansiteai.com";
-const description =
-  "ScanSite AI audits robots.txt, sitemap.xml, schema, metadata, content clarity, entities, EEAT and performance so AI answer engines can understand your website.";
 
 const spaceGrotesk = Space_Grotesk({
   variable: "--font-space-grotesk",
@@ -23,47 +18,46 @@ export const metadata = {
   metadataBase: new URL(siteUrl),
   applicationName: siteName,
   title: {
-    default: "ScanSite AI | AI Website Readiness Checker and LLM Search Audit",
-    template: "%s | ScanSite AI",
+    default: "ScanSiteAI | AI Website Readiness Checker and LLM Search Audit",
+    template: "%s | ScanSiteAI",
   },
-  description,
-  keywords: [
-    "ScanSite AI",
-    "AI website readiness checker",
-    "LLM SEO audit",
-    "AI search optimization",
-    "ChatGPT website audit",
-    "Claude crawler readiness",
-    "Google AI Overview optimization",
-    "schema audit",
-    "robots.txt AI crawlers",
-  ],
-  authors: [{ name: "Rebrand Gurus", url: "https://rebrandgurus.com" }],
-  creator: "Rebrand Gurus",
-  publisher: "Rebrand Gurus",
+  description: defaultDescription,
+  keywords: defaultKeywords,
+  authors: [{ name: siteName, url: siteUrl }],
+  creator: siteName,
+  publisher: siteName,
   alternates: {
     canonical: "/",
   },
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/favicon-96x96.png", sizes: "96x96", type: "image/png" },
+    ],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+  },
+  manifest: "/site.webmanifest",
   openGraph: {
     type: "website",
     locale: "en_US",
     url: "/",
     siteName,
-    title: "ScanSite AI - AI Website Readiness Checker",
-    description,
+    title: "ScanSiteAI - AI Website Readiness Checker",
+    description: defaultDescription,
     images: [
       {
         url: "/logo.png",
         width: 1200,
         height: 630,
-        alt: "ScanSite AI website readiness checker",
+        alt: "ScanSiteAI website readiness checker",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "ScanSite AI - AI Website Readiness Checker",
-    description,
+    title: "ScanSiteAI - AI Website Readiness Checker",
+    description: defaultDescription,
     images: ["/logo.png"],
   },
   robots: {
@@ -87,11 +81,11 @@ export default function RootLayout({ children }) {
       {
         "@type": ["Organization", "LocalBusiness"],
         "@id": `${siteUrl}/#organization`,
-        name: "Rebrand Gurus",
-        url: "https://rebrandgurus.com",
+        name: siteName,
+        url: siteUrl,
         logo: `${siteUrl}/logo.png`,
         email: contactEmail,
-        sameAs: ["https://rebrandgurus.com"],
+        sameAs: [siteUrl],
         contactPoint: [
           {
             "@type": "ContactPoint",
@@ -108,7 +102,7 @@ export default function RootLayout({ children }) {
         applicationCategory: "BusinessApplication",
         operatingSystem: "Web",
         url: siteUrl,
-        description,
+        description: defaultDescription,
         offers: {
           "@type": "Offer",
           price: "0",
@@ -124,7 +118,7 @@ export default function RootLayout({ children }) {
         name: siteName,
         applicationCategory: "SEOApplication",
         operatingSystem: "Web",
-        description,
+        description: defaultDescription,
         provider: {
           "@id": `${siteUrl}/#organization`,
         },
@@ -144,7 +138,7 @@ export default function RootLayout({ children }) {
         "@type": "Product",
         "@id": `${siteUrl}/#product`,
         name: siteName,
-        description,
+        description: defaultDescription,
         brand: {
           "@id": `${siteUrl}/#organization`,
         },
@@ -162,7 +156,7 @@ export default function RootLayout({ children }) {
       {
         "@type": "Article",
         "@id": `${siteUrl}/#article`,
-        headline: "How AI Website Readiness Checker evaluates LLM visibility",
+        headline: "How ScanSiteAI evaluates LLM visibility",
         author: {
           "@id": `${siteUrl}/#founder`,
         },
@@ -170,7 +164,7 @@ export default function RootLayout({ children }) {
           "@id": `${siteUrl}/#organization`,
         },
         mainEntityOfPage: siteUrl,
-        description,
+        description: defaultDescription,
       },
       {
         "@type": "FAQPage",
@@ -178,7 +172,7 @@ export default function RootLayout({ children }) {
         mainEntity: [
           {
             "@type": "Question",
-            name: "What does AI Website Readiness Checker analyze?",
+            name: "What does ScanSiteAI analyze?",
             acceptedAnswer: {
               "@type": "Answer",
               text: "It analyzes crawler access, metadata, structured data, headings, images, links, content clarity, EEAT signals, entity extraction, sitemap coverage and performance signals.",

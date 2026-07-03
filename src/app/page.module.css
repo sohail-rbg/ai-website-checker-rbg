@@ -163,10 +163,11 @@
 
 .publicHero {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(280px, 21rem);
-  gap: 56px;
-  align-items: end;
-  padding: 70px 0 58px;
+  grid-template-columns: minmax(0, 0.95fr) minmax(280px, 24rem);
+  gap: 72px;
+  align-items: center;
+  min-height: 620px;
+  padding: 52px 0 64px;
 }
 
 .publicBackLink {
@@ -191,7 +192,7 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  margin: 42px 0 0;
+  margin: 0;
   color: #8B9C8C;
   font-size: 0.82rem;
   font-weight: 700;
@@ -200,30 +201,84 @@
 }
 
 .publicTitle {
-  max-width: 860px;
-  margin: 18px 0 0;
+  max-width: 720px;
+  margin: 22px 0 0;
   color: #fff;
-  font-size: clamp(2.6rem, 6vw, 5.8rem);
+  font-size: clamp(2.55rem, 4vw, 4rem);
   font-weight: 650;
-  line-height: 0.98;
+  line-height: 1.08;
   letter-spacing: 0;
 }
 
 .publicDescription {
-  max-width: 740px;
-  margin: 26px 0 0;
+  max-width: 700px;
+  margin: 24px 0 0;
   color: rgba(217, 225, 216, 0.78);
   font-size: 1.08rem;
   line-height: 1.85;
 }
 
+.publicHeroActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 34px;
+}
+
+.publicHeroActions a {
+  display: inline-flex;
+  min-height: 50px;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border: 1px solid rgba(144, 238, 154, 0.26);
+  border-radius: 999px;
+  padding: 0 20px;
+  color: #d9e1d8;
+  font-size: 0.94rem;
+  font-weight: 800;
+  text-decoration: none;
+  transition: transform .2s ease, background .2s ease, border-color .2s ease;
+}
+
+.publicHeroActions a:first-child {
+  background: #9fe0a8;
+  border-color: #9fe0a8;
+  color: #020302;
+}
+
+.publicHeroActions a:hover {
+  transform: translateY(-1px);
+  border-color: rgba(144, 238, 154, 0.5);
+  background: rgba(144, 238, 154, 0.1);
+}
+
+.publicHeroActions a:first-child:hover {
+  background: #b8f4bf;
+}
+
 .publicSummary {
-  border-top: 1px solid rgba(139, 156, 140, 0.2);
-  border-bottom: 1px solid rgba(139, 156, 140, 0.12);
-  padding: 24px 0;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(139, 156, 140, 0.14);
+  border-radius: 30px;
+  background: linear-gradient(145deg, rgba(12, 24, 20, 0.9), rgba(2, 3, 2, 0.92));
+  padding: 28px;
+  box-shadow: 0 26px 70px rgba(0, 0, 0, 0.28);
+}
+
+.publicSummary::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 85% 0%, rgba(144, 238, 154, 0.13), transparent 36%),
+    linear-gradient(90deg, rgba(144, 238, 154, 0.08), transparent 44%);
 }
 
 .publicSummaryIcon {
+  position: relative;
   display: inline-grid;
   place-items: center;
   width: 46px;
@@ -234,6 +289,7 @@
 }
 
 .publicSummary h2 {
+  position: relative;
   margin: 20px 0 0;
   color: #fff;
   font-size: 1.35rem;
@@ -242,6 +298,7 @@
 }
 
 .publicSummary p {
+  position: relative;
   margin: 12px 0 0;
   color: rgba(217, 225, 216, 0.68);
   font-size: 0.94rem;
@@ -249,6 +306,7 @@
 }
 
 .publicSummary a {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -261,10 +319,10 @@
 
 .publicBody {
   display: grid;
-  grid-template-columns: minmax(220px, 0.34fr) minmax(0, 1fr);
-  gap: 64px;
+  grid-template-columns: minmax(220px, 0.3fr) minmax(0, 1fr);
+  gap: 56px;
   border-top: 1px solid rgba(139, 156, 140, 0.13);
-  padding: 52px 0 62px;
+  padding: 58px 0 66px;
 }
 
 .publicBodyIntro {
@@ -290,20 +348,22 @@
 
 .publicSections {
   display: grid;
-  gap: 0;
+  gap: 18px;
 }
 
 .publicSection {
   display: grid;
   grid-template-columns: 72px minmax(0, 1fr);
   gap: 28px;
-  border-top: 1px solid rgba(139, 156, 140, 0.12);
-  padding: 32px 0;
+  border: 1px solid rgba(139, 156, 140, 0.12);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.025);
+  padding: 26px;
 }
 
 .publicSection:first-child {
-  border-top: 0;
-  padding-top: 0;
+  border-top: 1px solid rgba(139, 156, 140, 0.12);
+  padding-top: 26px;
 }
 
 .publicSectionIndex {
@@ -889,6 +949,11 @@
     gap: 34px;
   }
 
+  .publicHero {
+    min-height: auto;
+    padding: 50px 0 46px;
+  }
+
   .publicBodyIntro {
     position: static;
     max-width: 620px;
@@ -936,8 +1001,12 @@
   }
 
   .publicEyebrow {
-    margin-top: 34px;
     font-size: 0.76rem;
+  }
+
+  .publicTitle {
+    font-size: clamp(2.2rem, 9.6vw, 3.25rem);
+    line-height: 1.08;
   }
 
   .publicDescription {
@@ -952,7 +1021,7 @@
   .publicSection {
     grid-template-columns: 1fr;
     gap: 12px;
-    padding: 28px 0;
+    padding: 22px;
   }
 
   .publicSectionIndex {

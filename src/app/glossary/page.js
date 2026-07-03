@@ -1,17 +1,19 @@
 import PublicInfoPage from "../_components/PublicInfoPage";
+import { createPageMetadata } from "../seo";
 
-export const metadata = {
-  title: "Glossary",
-  description: "Glossary of AI website readiness, answer engine optimization and LLM search visibility terms.",
-  alternates: { canonical: "/glossary" },
-};
+export const metadata = createPageMetadata({
+  title: "AI Website Readiness Glossary",
+  description: "ScanSiteAI glossary of AI website readiness, answer engine optimization and LLM search visibility terms.",
+  path: "/glossary",
+  keywords: ["AI readiness glossary", "answer engine optimization terms", "LLM SEO definitions", "EEAT glossary"],
+});
 
 export default function GlossaryPage() {
   return (
     <PublicInfoPage
       eyebrow="Glossary"
       title="Definitions for AI search visibility."
-      description="Plain-language definitions for the concepts measured by AI Website Readiness Checker."
+      description="Plain-language definitions for the concepts measured by ScanSiteAI."
       sections={[
         {
           heading: "Important terms",

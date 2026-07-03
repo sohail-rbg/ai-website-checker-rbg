@@ -7,23 +7,11 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useForm } from "react-hook-form";
 import toast, { Toaster } from "react-hot-toast";
 import {
-  Bar,
-  BarChart,
-  PolarAngleAxis,
-  PolarGrid,
-  PolarRadiusAxis,
-  Radar,
-  RadarChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
-import {
   ArrowRight,
   BadgeCheck,
   Bot,
   CheckCircle2,
+  CircleAlert,
   Code2,
   Database,
   FileText,
@@ -38,11 +26,13 @@ import {
   ScanSearch,
   ShieldCheck,
   Sparkles,
+  TrendingUp,
   UserRound,
   Zap,
 } from "lucide-react";
 import SiteHeader from "../SiteHeader";
 import SiteFooter from "../SiteFooter";
+import { AmBarChart, AmOverallScoreChart, AmRadarChart, AmScoreRing } from "../charts/AmCharts";
 import styles from "../../page.module.css";
 
 const scanSteps = [
@@ -67,7 +57,16 @@ const features = [
 
 function formatScoreLabel(key) {
   if (key === "eeat") return "EEAT";
-  return String(key || "").replace(/^\w/, (char) => char.toUpperCase());
+  const labels = {
+    openGraph: "Open Graph",
+    headingStructure: "Heading Structure",
+    internalLinking: "Internal Linking",
+    https: "HTTPS",
+  };
+  if (labels[key]) return labels[key];
+  return String(key || "")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/^\w/, (char) => char.toUpperCase());
 }
 
 function validateUrl(value) {
@@ -103,9 +102,9 @@ async function readApiResponse(response, fallbackMessage) {
     const cleanMessage = text.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
     throw new Error(
       response.status === 504
-        ? "The scan took too long on the live server. Please try a smaller site or try again."
+        ? "This website is taking longer than expected to respond. Please try again in a few minutes. If it keeps happening, ask your developer or hosting team to check slow hosting, Cloudflare bot protection, or firewall rules."
         : response.status >= 500
-          ? "The scan service had a live server error. Please try again in a moment."
+          ? "We could not complete the scan right now. Please try again in a moment."
           : cleanMessage || fallbackMessage
     );
   }
@@ -196,28 +195,123 @@ function PlatformLogo({ platform }) {
   );
 }
 
-function CircularScore({ score, grade }) {
+function platformTone(score) {
+  if (score >= 80) return { color: "#90ee9a", text: "text-[#90ee9a]", bg: "bg-[#90ee9a]/10", border: "border-[#90ee9a]/28" };
+  if (score >= 45) return { color: "#facc15", text: "text-amber-300", bg: "bg-amber-300/10", border: "border-amber-300/24" };
+  return { color: "#fb7185", text: "text-rose-300", bg: "bg-rose-300/10", border: "border-rose-300/24" };
+}
+
+function auditTone(score) {
+  if (score >= 80) return { text: "text-[#90ee9a]", icon: "text-[#90ee9a]", bg: "bg-[#90ee9a]/10", border: "border-[#90ee9a]/22", bar: "from-[#2E5E53] to-[#90ee9a]", status: "Strong" };
+  if (score >= 45) return { text: "text-amber-300", icon: "text-amber-300", bg: "bg-amber-300/10", border: "border-amber-300/22", bar: "from-[#8B9C8C] to-amber-300", status: "Needs polish" };
+  return { text: "text-rose-300", icon: "text-rose-300", bg: "bg-rose-300/10", border: "border-rose-300/22", bar: "from-rose-500 to-rose-300", status: "Needs attention" };
+}
+
+function platformBrandColor(platform) {
+  const colors = {
+    ChatGPT: 0x10a37f,
+    Claude: 0xd97757,
+    Gemini: 0x4285f4,
+    Perplexity: 0xd9e1d8,
+    "Google AI Overview": 0xfbbc04,
+    "Microsoft Copilot": 0x7c3aed,
+  };
+  return colors[platform] || 0x90ee9a;
+}
+
+function SignalRow({ type, children }) {
+  const positive = type === "positive";
+  const Icon = positive ? CheckCircle2 : CircleAlert;
   return (
-    <div className="flex flex-col items-center gap-5 text-center sm:flex-row sm:text-left">
-      <div
-        className={`${styles.meter} grid size-32 shrink-0 place-items-center rounded-full sm:size-36`}
-        style={{ "--score": `${score}%` }}
-      >
-        <div className="grid size-24 place-items-center rounded-full bg-slate-950 sm:size-28">
-          <div className="text-center">
-            <div className="text-3xl font-semibold text-white sm:text-4xl">{score}</div>
-            <div className="text-xs uppercase tracking-[0.28em] text-slate-400">Grade {grade}</div>
+    <div className={`flex min-h-10 items-center gap-3 rounded-xl px-3 py-2 text-sm ${positive ? "bg-black text-[#e9f7e9]" : "bg-amber-300/10 text-[#fff2bd]"}`}>
+      <Icon size={17} strokeWidth={2} className={positive ? "text-[#90ee9a]" : "text-amber-300"} aria-hidden="true" />
+      <span className="leading-5">{children}</span>
+    </div>
+  );
+}
+
+function PlatformScoresSection({ platforms, scannedLabel }) {
+  return (
+    <section className={`${styles.pageContainer} mx-auto px-5 py-10 sm:px-8`}>
+      <div className="mb-8 flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <div className="flex items-center gap-4">
+            <span className="h-9 w-1 rounded-full bg-[#90ee9a]" />
+            <h2 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">AI Platform Scores</h2>
           </div>
+          <p className="mt-3 max-w-3xl text-base leading-7 text-[#d9e1d8]/68">
+            Score overview across leading AI platforms based on website readiness and content intelligence.
+          </p>
+        </div>
+        <div className="inline-flex w-fit items-center gap-3 rounded-full border border-[#90ee9a]/25 bg-[#90ee9a]/8 px-5 py-3 text-sm font-semibold text-[#90ee9a]">
+          <ShieldCheck size={22} strokeWidth={1.8} aria-hidden="true" />
+          <span>Scanned on {scannedLabel}</span>
         </div>
       </div>
-      <div>
-        <p className="text-sm uppercase tracking-[0.3em] text-[#8B9C8C]">Overall Score</p>
-        <h2 className="mt-2 text-3xl font-semibold text-white sm:text-4xl">AI Website Readiness</h2>
-        <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-slate-300 sm:mx-0">
-          Calculated from live technical signals, structured data, content clarity, trust markers, crawler access and Lighthouse results.
-        </p>
+
+      <div className="grid gap-5 lg:grid-cols-2 2xl:grid-cols-3">
+        {platforms.map((platform) => {
+          const tone = platformTone(platform.score);
+          const strengths = platform.strengths.length ? platform.strengths.slice(0, 2) : ["No major strengths detected"];
+          const weaknesses = platform.weaknesses.length ? platform.weaknesses.slice(0, 2) : ["No major gaps detected"];
+
+          return (
+            <article key={platform.platform} className="relative overflow-hidden rounded-[1.7rem]  bg-black p-6 shadow-[0_22px_60px_rgba(0,0,0,.24)]">
+              <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#90ee9a]/28 to-transparent" />
+              <div className="mb-6 flex items-start justify-between gap-4">
+                <div className="flex min-w-0 items-center gap-5">
+                  <PlatformLogo platform={platform.platform} />
+                  <div className="min-w-0">
+                    <h3 className="truncate text-xl font-semibold text-white">{platform.platform}</h3>
+                    <span className={`mt-2 inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${tone.bg} ${tone.border} ${tone.text}`}>
+                      {platform.status}
+                    </span>
+                  </div>
+                </div>
+                <div className="relative grid size-14 shrink-0 place-items-center">
+                  <AmScoreRing score={platform.score} color={tone.color} className="absolute inset-0" />
+                  <span className={`relative text-lg font-semibold leading-none ${tone.text}`}>{platform.score}%</span>
+                </div>
+              </div>
+
+              <div className="grid gap-5">
+                <div>
+                  <p className="mb-2 text-sm text-[#d9e1d8]/78">Detected</p>
+                  <div className="grid gap-2">
+                    {strengths.map((item) => <SignalRow key={item} type="positive">{item}</SignalRow>)}
+                  </div>
+                </div>
+                <div>
+                  <p className="mb-2 text-sm text-[#d9e1d8]/78">Missing</p>
+                  <div className="grid gap-2">
+                    {weaknesses.map((item) => <SignalRow key={item}>{item}</SignalRow>)}
+                  </div>
+                </div>
+              </div>
+            </article>
+          );
+        })}
       </div>
-    </div>
+
+      <div className="mt-6 flex flex-col gap-5 rounded-[1.6rem] border border-[#8B9C8C]/16 bg-[linear-gradient(135deg,rgba(9,18,16,.92),rgba(4,8,7,.96))] p-6 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-start gap-5">
+          <span className="grid size-16 shrink-0 place-items-center rounded-full border border-[#90ee9a]/22 bg-[#90ee9a]/8 text-[#90ee9a]">
+            <Sparkles size={28} strokeWidth={1.8} aria-hidden="true" />
+          </span>
+          <div>
+            <h3 className="text-lg font-semibold text-white">Improve Your AI Readiness</h3>
+            <p className="mt-2 text-sm leading-6 text-[#d9e1d8]/68">
+              Fix the missing elements to improve visibility across AI platforms and increase content trust.
+            </p>
+          </div>
+        </div>
+        <a href="#top-improvements" className="inline-flex w-fit items-center gap-3 rounded-2xl border border-[#90ee9a]/28 bg-[#90ee9a]/8 px-5 py-3 text-sm font-semibold text-[#90ee9a] transition hover:bg-[#90ee9a]/14">
+          <TrendingUp size={19} strokeWidth={2} aria-hidden="true" />
+          View Recommendations
+          <ArrowRight size={18} strokeWidth={2} aria-hidden="true" />
+        </a>
+      </div>
+    </section>
   );
 }
 
@@ -283,40 +377,57 @@ export function Dashboard({ report, onReset }) {
     () => Object.entries(report.scoreBreakdown).map(([name, value]) => ({ name: formatScoreLabel(name), value })),
     [report]
   );
+  const overallSegments = useMemo(() => {
+    const platforms = Array.isArray(report.platformScores) ? report.platformScores : [];
+    const totalPlatformScore = platforms.reduce((sum, item) => sum + Math.max(0, Number(item.score) || 0), 0);
+    const overallScore = Math.max(0, Number(report.overallScore) || 0);
+
+    if (!totalPlatformScore) return [];
+
+    return platforms.map((platform) => ({
+      category: platform.platform,
+      value: (Math.max(0, Number(platform.score) || 0) / totalPlatformScore) * overallScore,
+      score: Number(platform.score) || 0,
+      color: platformBrandColor(platform.platform),
+    }));
+  }, [report]);
   const radar = breakdown.filter((item) => ["Metadata", "Schema", "Content", "EEAT", "Entities", "Robots", "Performance"].includes(item.name));
   const visibleRecommendations = report.recommendations.slice(0, 1);
   const hiddenCount = Math.max(report.recommendations.length - 1, 0);
+  const scannedAt = report.scannedAt ? new Date(report.scannedAt) : null;
+  const scannedLabel = scannedAt && !Number.isNaN(scannedAt.getTime())
+    ? scannedAt.toLocaleString()
+    : "Just now";
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="pb-16">
       <section className={`${styles.pageContainer} mx-auto px-5 py-8 sm:px-8`}>
-        <div className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mb-8 flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <div className="flex items-center gap-4">
               <span className="h-9 w-1 rounded-full bg-[#90ee9a]" />
               <h2 className="text-3xl font-semibold tracking-tight text-white">Report Dashboard</h2>
             </div>
-            <p className="mt-3 text-base text-[#d9e1d8]/72">Overview of your AI Website Readiness scan</p>
+            <p className="mt-3 text-base text-[#d9e1d8]/72">Overview of your AI Website Readiness scan and next best action.</p>
           </div>
-          <button onClick={onReset} className="inline-flex w-fit items-center gap-3 rounded-2xl border border-[#8B9C8C]/22 bg-[#06100d]/80 px-5 py-4 text-sm font-semibold text-[#9fe0a8] transition hover:bg-[#0b1712]">
+          <button onClick={onReset} className="inline-flex w-fit items-center gap-3 rounded-full border border-[#90ee9a]/25 bg-[#90ee9a]/8 px-5 py-3.5 text-sm font-semibold text-[#9fe0a8] transition hover:border-[#90ee9a]/50 hover:bg-[#90ee9a]/14">
             <RefreshCw size={21} strokeWidth={2} aria-hidden="true" />
             Run another scan
           </button>
         </div>
 
-        <div className="relative overflow-hidden rounded-[2rem] border border-[#8B9C8C]/18 bg-[linear-gradient(135deg,rgba(9,20,17,.94),rgba(3,7,6,.96))] p-5 shadow-[0_24px_70px_rgba(0,0,0,.30)] sm:p-7">
+        <div className="relative overflow-hidden rounded-[2rem] border border-[#8B9C8C]/14 bg-[linear-gradient(135deg,rgba(9,20,17,.94),rgba(3,7,6,.97))] p-5 shadow-[0_24px_70px_rgba(0,0,0,.30)] sm:p-7">
           <div className="pointer-events-none absolute inset-0 opacity-20 [background-image:radial-gradient(circle_at_center,rgba(144,238,154,.14)_1px,transparent_1.5px)] [background-size:18px_18px] [mask-image:radial-gradient(circle_at_15%_28%,black,transparent_24%)]" />
-          <div className="relative grid gap-8 xl:grid-cols-[minmax(0,1fr)_25rem] xl:items-stretch">
+          <div className="relative grid gap-8 xl:grid-cols-[minmax(0,1fr)_27rem] xl:items-stretch">
             <div className="grid gap-7">
               <div className="grid gap-7 lg:grid-cols-[20rem_minmax(0,1fr)] lg:items-center">
-                <div className="relative mx-auto grid size-64 place-items-center rounded-full bg-[radial-gradient(circle,rgba(139,156,140,.08),transparent_64%)] lg:mx-0">
-                  <div className="absolute inset-2 rounded-full border border-[#8B9C8C]/10" />
-                  <div className="absolute inset-8 rounded-full bg-[conic-gradient(#90ee9a_calc(var(--score)*1%),rgba(255,255,255,.10)_0)] p-5" style={{ "--score": report.overallScore }}>
-                    <div className="grid h-full w-full place-items-center rounded-full bg-[#020806] shadow-[inset_0_0_32px_rgba(0,0,0,.50)]">
-                      <div className="text-center">
-                        <div className="text-5xl font-semibold text-white">{report.overallScore}</div>
-                        <div className="mt-3 text-sm font-semibold uppercase tracking-[0.24em] text-[#90ee9a]">Grade {report.grade}</div>
-                      </div>
+                  <div className="relative mx-auto grid size-64 place-items-center overflow-visible rounded-full bg-[radial-gradient(circle,rgba(139,156,140,.08),transparent_64%)] lg:mx-0">
+                    <div className="absolute inset-2 rounded-full border border-[#8B9C8C]/10" />
+                    <AmOverallScoreChart score={report.overallScore} data={overallSegments} className="absolute inset-5" />
+                  <div className="relative z-10 grid size-36 place-items-center rounded-full bg-[#020806] shadow-[inset_0_0_32px_rgba(0,0,0,.50)]">
+                    <div className="text-center">
+                      <div className="text-5xl font-semibold text-white">{report.overallScore}</div>
+                      <div className="mt-3 text-sm font-semibold uppercase tracking-[0.24em] text-[#90ee9a]">Grade {report.grade}</div>
                     </div>
                   </div>
                 </div>
@@ -338,12 +449,12 @@ export function Dashboard({ report, onReset }) {
                 {[
                   ["globe", "Scanned URL", report.finalUrl],
                   ["redirect", "Redirects", report.redirected ? "Detected" : "None detected"],
-                  ["beacon", "Lighthouse", report.performance.error ? "Could not complete" : "Completed"],
+                  ["beacon", "Lighthouse", report.performance.fallback ? "Estimated from response" : report.performance.error ? "Could not complete" : "Completed"],
                 ].map(([icon, label, value]) => (
                   <div key={label} className="rounded-[1.4rem] border border-[#8B9C8C]/14 bg-[#07100e]/78 p-5">
                     <span className="mb-5 block text-[#90ee9a]"><MetricIcon type={icon} /></span>
                     <p className="text-xs uppercase tracking-[0.28em] text-[#d9e1d8]/50">{label}</p>
-                    <p className="mt-2 break-all text-base font-semibold text-white">{value}</p>
+                    <p className="mt-2 min-w-0 text-base font-semibold leading-snug text-white [overflow-wrap:anywhere]">{value}</p>
                   </div>
                 ))}
               </div>
@@ -355,7 +466,7 @@ export function Dashboard({ report, onReset }) {
                   </span>
                   <div>
                     <p className="font-semibold text-white">Data is collected in real-time and analyzed using 50+ AI signals</p>
-                    <p className="mt-1 text-sm text-[#d9e1d8]/58">Last scan: {report.scannedAt ? new Date(report.scannedAt).toLocaleString() : "Just now"}</p>
+                    <p className="mt-1 text-sm text-[#d9e1d8]/58">Last scan: {scannedLabel}</p>
                   </div>
                 </div>
                 <span className="inline-flex w-fit items-center gap-2 rounded-full border border-[#8B9C8C]/14 bg-[#90ee9a]/8 px-4 py-2 text-sm font-semibold text-[#90ee9a]">
@@ -365,105 +476,51 @@ export function Dashboard({ report, onReset }) {
               </div>
             </div>
 
-            <aside className="relative overflow-hidden rounded-[2rem] border border-[#8B9C8C]/18 bg-[linear-gradient(145deg,rgba(15,29,24,.94),rgba(4,8,6,.90)_58%)] p-6">
+            <aside className="relative flex min-h-[34rem] overflow-hidden rounded-[2rem] border border-[#8B9C8C]/16 bg-[linear-gradient(145deg,rgba(18,34,28,.96),rgba(4,8,6,.92)_58%)] p-7 shadow-[inset_0_1px_0_rgba(255,255,255,.06)] sm:p-8">
+              <div className="pointer-events-none absolute right-[-7rem] top-[-8rem] size-72 rounded-full bg-[#90ee9a]/10 blur-3xl" />
+              <div className="relative flex w-full flex-col">
               <div className="mb-8 flex items-start justify-between gap-5">
                 <div>
                   <p className="text-sm font-semibold uppercase tracking-[0.32em] text-[#90ee9a]">Complete report</p>
-                  <h3 className="mt-6 text-3xl font-semibold leading-tight text-white">Send the full AI readiness report.</h3>
-                  <p className="mt-5 text-base leading-7 text-[#d9e1d8]/72">Get the detailed report by email and request a strategy call with us.</p>
+                  <h3 className="mt-6 text-3xl font-semibold leading-tight text-white sm:text-4xl">Send the full AI readiness report.</h3>
+                  <p className="mt-5 text-base leading-8 text-[#d9e1d8]/74">Get the detailed report by email and request a strategy call with us.</p>
                 </div>
                 <span className="hidden size-16 shrink-0 place-items-center rounded-2xl border border-[#8B9C8C]/22 bg-[#90ee9a]/8 text-[#90ee9a] sm:grid">
                   <Mail size={31} strokeWidth={1.65} aria-hidden="true" />
                 </span>
               </div>
               <div className="h-px bg-gradient-to-r from-transparent via-[#8B9C8C]/24 to-transparent" />
-              <div className="mt-6">
+              <div className="mt-8">
                 <EmailCapture report={report} compact bare buttonLabel="Send Report" />
+              </div>
+              <div className="mt-auto pt-7">
+                <div className="flex items-start gap-3 rounded-2xl border border-[#90ee9a]/14 bg-black/20 p-4 text-sm leading-6 text-[#d9e1d8]/72">
+                  <Lock className="mt-0.5 shrink-0 text-[#90ee9a]" size={18} strokeWidth={2} aria-hidden="true" />
+                  <p>Your scan data is only used to generate this report and send your requested follow-up.</p>
+                </div>
+              </div>
               </div>
             </aside>
           </div>
         </div>
       </section>
 
-      <Section title="AI Platform Scores">
-        <div className="grid gap-4 lg:grid-cols-3">
-          {report.platformScores.map((platform) => (
-            <Card key={platform.platform}>
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <div className={styles.platformLogo}>
-                    <PlatformLogo platform={platform.platform} />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-white">{platform.platform}</h3>
-                    <p className="text-sm text-slate-400">{platform.status}</p>
-                  </div>
-                </div>
-                <div className={`text-3xl font-semibold ${scoreColor(platform.score)}`}>{platform.score}%</div>
-              </div>
-              <div className="mt-5 grid gap-3 text-sm">
-                <div>
-                  <p className="mb-2 text-slate-400">Detected</p>
-                  {platform.strengths.length ? platform.strengths.map((item) => <p key={item} className="rounded-xl bg-emerald-400/10 px-3 py-2 text-emerald-100">{item}</p>) : <p className="text-slate-500">No major strengths detected.</p>}
-                </div>
-                <div>
-                  <p className="mb-2 text-slate-400">Missing</p>
-                  {platform.weaknesses.length ? platform.weaknesses.map((item) => <p key={item} className="rounded-xl bg-amber-400/10 px-3 py-2 text-amber-100">{item}</p>) : <p className="text-slate-500">No major gaps detected.</p>}
-                </div>
-              </div>
-            </Card>
-          ))}
-        </div>
-      </Section>
+      <PlatformScoresSection platforms={report.platformScores} scannedLabel={scannedLabel} />
 
       <Section title="Score Breakdown">
         <div className="grid gap-5 lg:grid-cols-2">
           <Card className="h-80 sm:h-96">
-            <ResponsiveContainer width="100%" height="100%">
-              <RadarChart data={radar}>
-                <PolarGrid stroke="rgba(255,255,255,.16)" />
-                <PolarAngleAxis dataKey="name" stroke="#c7d0c6" />
-                <PolarRadiusAxis stroke="#8B9C8C" />
-                <Radar dataKey="value" stroke="#8B9C8C" fill="#2E5E53" fillOpacity={0.34} />
-                <Tooltip contentStyle={{ background: "#020617", border: "1px solid rgba(255,255,255,.16)", borderRadius: 12 }} />
-              </RadarChart>
-            </ResponsiveContainer>
+            <AmRadarChart data={radar} />
           </Card>
           <Card className="h-80 sm:h-96">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={breakdown}>
-                <XAxis dataKey="name" stroke="#aeb9ad" fontSize={11} interval={0} angle={-25} textAnchor="end" height={80} />
-                <YAxis stroke="#aeb9ad" domain={[0, 100]} />
-                <Tooltip contentStyle={{ background: "#020617", border: "1px solid rgba(255,255,255,.16)", borderRadius: 12 }} />
-                <Bar dataKey="value" fill="#8B9C8C" radius={[8, 8, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            <AmBarChart data={breakdown} />
           </Card>
         </div>
       </Section>
 
-      <Section title="Technical Checklist">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          {Object.entries(report.checklist).map(([key, value]) => (
-            <div key={key} className={`${styles.softGlass} rounded-2xl p-4`}>
-              <div className={`text-2xl ${value ? "text-emerald-300" : "text-rose-300"}`}>{value ? "✓" : "!"}</div>
-              <p className="mt-2 text-sm font-medium text-white">{formatScoreLabel(key)}</p>
-            </div>
-          ))}
-        </div>
-      </Section>
+      <TechnicalAuditSection report={report} />
 
-      <Section title="Audit Details">
-        <div className="grid gap-5 lg:grid-cols-3">
-          <AuditCard title="Schema Audit" score={report.schema.score} lines={[`Present: ${report.schema.present.join(", ") || "None"}`, `Missing: ${report.schema.missing.slice(0, 6).join(", ")}`, `Invalid blocks: ${report.schema.invalid.length}`]} />
-          <AuditCard title="Content Audit" score={report.content.score} lines={[`Words: ${report.content.wordCount}`, `Average sentence: ${report.content.averageSentenceWords} words`, `FAQ detected: ${report.content.hasFAQ ? "Yes" : "No"}`]} />
-          <AuditCard title="Performance" score={report.performance.performance} lines={[`Accessibility: ${report.performance.accessibility}`, `SEO: ${report.performance.seo}`, `Best Practices: ${report.performance.bestPractices}`]} />
-          <AuditCard title="EEAT" score={report.eeat.score} lines={Object.entries(report.eeat.checks).filter(([, v]) => v).slice(0, 5).map(([k]) => k.replace(/([A-Z])/g, " $1"))} />
-          <AuditCard title="Entity Analysis" score={report.entities.score} lines={[`Company: ${report.entities.companyName || "Not detected"}`, `Email: ${report.entities.emails[0] || "Not detected"}`, `Services: ${report.entities.services.length}`]} />
-          <AuditCard title="Crawler Access" score={report.robots.score} lines={[`robots.txt: ${report.robots.exists ? "Found" : "Missing"}`, `Blocked bots: ${report.robots.blockedBots.join(", ") || "None detected"}`, `Sitemap URLs: ${report.sitemap.urlCount}`]} />
-        </div>
-      </Section>
-
+      <div id="top-improvements" />
       <Section title="Top Improvements">
         <div className="grid gap-4">
           {visibleRecommendations.map((item) => (
@@ -529,17 +586,174 @@ export function Dashboard({ report, onReset }) {
   );
 }
 
-function AuditCard({ title, score, lines }) {
+function TechnicalAuditSection({ report }) {
+  const checks = Object.entries(report.checklist || {});
+  const passed = checks.filter(([, value]) => value).length;
+  const attention = checks.length - passed;
+  const auditCards = [
+    {
+      icon: Database,
+      title: "Schema Audit",
+      score: report.schema.score,
+      lines: [
+        `Present: ${report.schema.present.join(", ") || "None detected"}`,
+        `Missing: ${report.schema.missing.slice(0, 4).join(", ") || "No major gaps"}`,
+        `Invalid blocks: ${report.schema.invalid.length}`,
+      ],
+    },
+    {
+      icon: FileText,
+      title: "Content Audit",
+      score: report.content.score,
+      lines: [
+        `Words: ${report.content.wordCount}`,
+        `Average sentence: ${report.content.averageSentenceWords} words`,
+        `FAQ detected: ${report.content.hasFAQ ? "Yes" : "No"}`,
+      ],
+    },
+    {
+      icon: TrendingUp,
+      title: "Performance",
+      score: report.performance.performance,
+      lines: report.performance.fallback
+        ? [
+          "Estimated from live HTTP response",
+          `Response time: ${report.performance.responseTimeMs}ms`,
+          `HTML size: ${Math.round((report.performance.htmlBytes || 0) / 1024)}KB`,
+        ]
+        : [`Accessibility: ${report.performance.accessibility}`, `SEO: ${report.performance.seo}`, `Best Practices: ${report.performance.bestPractices}`],
+    },
+    {
+      icon: ShieldCheck,
+      title: "EEAT",
+      score: report.eeat.score,
+      lines: Object.entries(report.eeat.checks).filter(([, value]) => value).slice(0, 4).map(([key]) => formatScoreLabel(key)),
+    },
+    {
+      icon: UserRound,
+      title: "Entity Analysis",
+      score: report.entities.score,
+      lines: [
+        `Company: ${report.entities.companyName || "Not detected"}`,
+        `Email: ${report.entities.emails[0] || "Not detected"}`,
+        `Services: ${report.entities.services.length}`,
+      ],
+    },
+    {
+      icon: Bot,
+      title: "Crawler Access",
+      score: report.robots.score,
+      lines: [
+        `robots.txt: ${report.robots.exists ? "Found" : "Missing"}`,
+        `Blocked bots: ${report.robots.blockedBots.join(", ") || "None detected"}`,
+        `Sitemap URLs: ${report.sitemap.urlCount}`,
+      ],
+    },
+  ];
+
   return (
-    <Card>
-      <div className="flex items-center justify-between">
-        <h3 className="font-semibold text-white">{title}</h3>
-        <span className={`text-2xl font-semibold ${scoreColor(score)}`}>{score}</span>
+    <section className={`${styles.pageContainer} mx-auto px-5 py-8 sm:px-8`}>
+      <div className="mb-7 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <div className="flex items-center gap-4">
+            <span className="h-9 w-1 rounded-full bg-[#90ee9a]" />
+            <h2 className="text-3xl font-semibold tracking-tight text-white">Technical Audit</h2>
+          </div>
+          <p className="mt-3 max-w-2xl text-base leading-7 text-[#d9e1d8]/68">
+            Live crawl, structure, trust and performance checks that affect how AI systems understand this website.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-3">
+          <span className="inline-flex items-center gap-2 rounded-full border border-[#90ee9a]/24 bg-[#90ee9a]/8 px-4 py-2 text-sm font-semibold text-[#90ee9a]">
+            <CheckCircle2 size={17} strokeWidth={2} aria-hidden="true" />
+            {passed} passed
+          </span>
+          <span className="inline-flex items-center gap-2 rounded-full border border-rose-300/24 bg-rose-300/8 px-4 py-2 text-sm font-semibold text-rose-200">
+            <CircleAlert size={17} strokeWidth={2} aria-hidden="true" />
+            {attention} need attention
+          </span>
+        </div>
       </div>
-      <div className="mt-4 space-y-2 text-sm text-slate-300">
-        {lines.length ? lines.map((line) => <p key={line}>{line}</p>) : <p>No positive signals detected.</p>}
+
+      <div className="relative overflow-hidden rounded-[2rem] border border-[#8B9C8C]/14 bg-[linear-gradient(135deg,rgba(9,20,17,.92),rgba(3,7,6,.96))] p-5 shadow-[0_24px_80px_rgba(0,0,0,.28)] sm:p-7">
+        <div className="pointer-events-none absolute inset-0 opacity-25 [background-image:radial-gradient(circle_at_center,rgba(144,238,154,.13)_1px,transparent_1.5px)] [background-size:20px_20px] [mask-image:linear-gradient(90deg,black,transparent_70%)]" />
+        <div className="relative grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          {checks.map(([key, value]) => (
+            <article
+              key={key}
+              className={`group flex min-h-24 items-center gap-4 rounded-2xl border p-4 transition hover:-translate-y-0.5 ${
+                value
+                  ? "border-[#90ee9a]/18 bg-[#90ee9a]/7 hover:border-[#90ee9a]/36"
+                  : "border-rose-300/18 bg-rose-300/7 hover:border-rose-300/34"
+              }`}
+            >
+              <span className={`grid size-11 shrink-0 place-items-center rounded-full border ${value ? "border-[#90ee9a]/32 bg-[#90ee9a]/10 text-[#90ee9a]" : "border-rose-300/32 bg-rose-300/10 text-rose-200"}`}>
+                {value ? <CheckCircle2 size={23} strokeWidth={1.9} aria-hidden="true" /> : <CircleAlert size={23} strokeWidth={1.9} aria-hidden="true" />}
+              </span>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-white">{formatScoreLabel(key)}</p>
+                <p className={`mt-1 text-xs font-semibold uppercase tracking-[0.16em] ${value ? "text-[#90ee9a]" : "text-rose-200"}`}>
+                  {value ? "Ready" : "Review"}
+                </p>
+              </div>
+            </article>
+          ))}
+        </div>
+
+        <div className="relative mt-7 flex flex-col gap-4 border-t border-[#8B9C8C]/12 pt-7 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-start gap-4">
+            <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-[#90ee9a]/10 text-[#90ee9a]">
+              <Sparkles size={24} strokeWidth={1.8} aria-hidden="true" />
+            </span>
+            <div>
+              <h3 className="text-xl font-semibold text-white">Audit Details</h3>
+              <p className="mt-1 max-w-2xl text-sm leading-6 text-[#d9e1d8]/64">
+                Focus first on low-scoring modules. These areas usually create the biggest lift in AI readability and trust.
+              </p>
+            </div>
+          </div>
+          <a href="#top-improvements" className="inline-flex w-fit items-center gap-3 rounded-full border border-[#90ee9a]/28 bg-[#90ee9a]/8 px-5 py-3 text-sm font-semibold text-[#9fe0a8] transition hover:border-[#90ee9a]/50 hover:bg-[#90ee9a]/14">
+            View improvements
+            <ArrowRight size={18} strokeWidth={2} aria-hidden="true" />
+          </a>
+        </div>
+
+        <div className="relative mt-6 grid gap-4 lg:grid-cols-3">
+          {auditCards.map((card) => (
+            <AuditCard key={card.title} {...card} />
+          ))}
+        </div>
       </div>
-    </Card>
+    </section>
+  );
+}
+
+function AuditCard({ title, score, lines, icon: Icon = FileText }) {
+  const tone = auditTone(score);
+  return (
+    <article className="rounded-[1.4rem] border border-[#8B9C8C]/13 bg-[#07100e]/72 p-5 shadow-[inset_0_1px_0_rgba(255,255,255,.035)]">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex min-w-0 items-center gap-4">
+          <span className={`grid size-12 shrink-0 place-items-center rounded-2xl border ${tone.border} ${tone.bg} ${tone.icon}`}>
+            <Icon size={23} strokeWidth={1.8} aria-hidden="true" />
+          </span>
+          <div className="min-w-0">
+            <h3 className="font-semibold text-white">{title}</h3>
+            <p className={`mt-1 text-xs font-semibold uppercase tracking-[0.18em] ${tone.text}`}>{tone.status}</p>
+          </div>
+        </div>
+        <div className="text-right">
+          <span className={`text-4xl font-semibold leading-none ${tone.text}`}>{score}</span>
+          <span className="ml-1 text-sm text-[#d9e1d8]/55">/100</span>
+        </div>
+      </div>
+      <div className="mt-5 space-y-2 text-sm text-[#d9e1d8]/70">
+        {lines.length ? lines.map((line) => <p key={line} className="[overflow-wrap:anywhere]">{line}</p>) : <p>No positive signals detected.</p>}
+      </div>
+      <div className="mt-5 h-1.5 overflow-hidden rounded-full bg-[#8B9C8C]/12">
+        <div className={`h-full rounded-full bg-gradient-to-r ${tone.bar}`} style={{ width: `${Math.max(4, Math.min(100, Number(score) || 0))}%` }} />
+      </div>
+    </article>
   );
 }
 
@@ -772,7 +986,7 @@ export default function Home() {
             A technical scan built for answer engines, not traditional SEO.
           </h2>
           <span>
-            ScanSite AI checks the signals modern AI systems need before they can crawl, understand, trust and recommend a website.
+            ScanSiteAI checks the signals modern AI systems need before they can crawl, understand, trust and recommend a website.
           </span>
         </div>
 

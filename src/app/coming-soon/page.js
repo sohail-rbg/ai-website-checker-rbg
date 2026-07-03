@@ -1,10 +1,12 @@
 import PublicInfoPage from "../_components/PublicInfoPage";
+import { createPageMetadata } from "../seo";
 
-export const metadata = {
-  title: "Coming Soon",
-  description: "Login access for AI Website Readiness Checker is coming soon.",
-  alternates: { canonical: "/coming-soon" },
-};
+export const metadata = createPageMetadata({
+  title: "ScanSiteAI Login Coming Soon",
+  description: "Login access for ScanSiteAI is coming soon while the MVP focuses on live scans, report delivery and demo requests.",
+  path: "/coming-soon",
+  keywords: ["ScanSiteAI login", "AI readiness account", "AI audit dashboard coming soon"],
+});
 
 export default function ComingSoonPage() {
   return (
@@ -15,7 +17,7 @@ export default function ComingSoonPage() {
       sections={[
         {
           heading: "Need help now?",
-          copy: "Book a demo or email info@scansiteai.com to review your AI readiness report with Rebrand Gurus.",
+          copy: "Book a demo or email info@scansiteai.com to review your AI readiness report with ScanSiteAI.",
           items: ["Live AI readiness scan", "Detailed report by email", "Demo and consultation request"],
         },
       ]}

@@ -7,9 +7,9 @@ import { assertPublicUrl } from "./security";
 
 const BOT_AGENTS = ["GPTBot", "ClaudeBot", "Googlebot", "Google-Extended", "PerplexityBot", "CCBot", "Amazonbot", "Applebot"];
 const SCHEMA_TYPES = ["Organization", "Person", "Article", "FAQPage", "Service", "Product", "Review", "LocalBusiness", "BreadcrumbList", "Recipe", "HowTo", "Event", "VideoObject", "JobPosting", "Course"];
-const USER_AGENT = "AIWebsiteReadinessChecker/1.0 (+https://scansiteai.com)";
+const USER_AGENT = "ScanSiteAI/1.0 (+https://scansiteai.com)";
 const BROWSER_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36";
-const REQUEST_TIMEOUT = 6000;
+const REQUEST_TIMEOUT = 15000;
 const LIGHTHOUSE_TIMEOUT = 18000;
 const MAX_REDIRECTS = 5;
 const DEFAULT_HEADERS = {
@@ -625,7 +625,12 @@ export async function scanWebsite(inputUrl) {
     response = await fetchHomepage(url);
     response.durationMs = Date.now() - startedAt;
   } catch (error) {
-    throw new Error(error.code === "ECONNABORTED" ? "The website timed out while scanning." : `Unable to reach the website: ${error.message}`);
+    if (["ECONNABORTED", "ETIMEDOUT"].includes(error.code)) {
+      throw new Error(
+        "This website is taking too long to respond. Please try again in a few minutes. If it keeps happening, ask your developer or hosting team to check slow server response, firewall rules, Cloudflare bot protection, or whether server-side crawlers are being delayed."
+      );
+    }
+    throw new Error(`We could not reach this website. Please check that the URL is correct, the site is online, and it can be opened publicly. Technical detail: ${error.message}`);
   }
 
   if ([401, 403].includes(response.status)) {

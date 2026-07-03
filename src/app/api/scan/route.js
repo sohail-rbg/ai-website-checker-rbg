@@ -31,7 +31,7 @@ export async function POST(request) {
     return Response.json({ report });
   } catch (error) {
     const message = error?.message || "We could not scan this website. Please try again.";
-    const isUserFixable = /(invalid|please enter|website url|offline|timeout|timed out|blocked|ssl|private|localhost|unable to reach)/i.test(message);
+    const isUserFixable = /(invalid|please enter|website url|offline|timeout|timed out|taking too long|too long to respond|blocked|ssl|private|localhost|unable to reach|could not reach)/i.test(message);
     if (isUserFixable) {
       console.warn("Scan request rejected", message);
     } else {

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, BadgeCheck, Mail, Sparkles } from "lucide-react";
+import { ArrowRight, BadgeCheck, Mail, Sparkles } from "lucide-react";
 import SiteFooter from "./SiteFooter";
 import SiteHeader from "./SiteHeader";
 import styles from "../page.module.css";
@@ -13,10 +13,6 @@ export default function PublicInfoPage({ title, eyebrow, description, sections =
 
         <section className={styles.publicHero}>
           <div>
-            <Link href="/" className={styles.publicBackLink}>
-              <ArrowLeft size={16} strokeWidth={1.9} aria-hidden="true" />
-              Back to checker
-            </Link>
             <p className={styles.publicEyebrow}>
               <Sparkles size={16} strokeWidth={1.9} aria-hidden="true" />
               {eyebrow}
@@ -25,6 +21,13 @@ export default function PublicInfoPage({ title, eyebrow, description, sections =
               {title}
             </h1>
             <p className={styles.publicDescription}>{description}</p>
+            <div className={styles.publicHeroActions}>
+              <Link href="/">
+                Run a scan
+                <ArrowRight size={17} strokeWidth={2} aria-hidden="true" />
+              </Link>
+              <Link href="/book-demo">Book a demo</Link>
+            </div>
           </div>
 
           <aside className={styles.publicSummary}>
@@ -35,10 +38,10 @@ export default function PublicInfoPage({ title, eyebrow, description, sections =
             <p>
               Send your scan or book a demo to turn the report into a practical AI visibility roadmap.
             </p>
-            <a href="mailto:info@scansiteai.com?subject=AI%20Readiness%20Help">
-              Contact ScanSite AI
+            <Link href="/book-demo">
+              Contact ScanSiteAI
               <ArrowRight size={16} strokeWidth={2} aria-hidden="true" />
-            </a>
+            </Link>
           </aside>
         </section>
 
@@ -46,7 +49,7 @@ export default function PublicInfoPage({ title, eyebrow, description, sections =
           <div className={styles.publicBodyIntro}>
             <span>Overview</span>
             <p>
-              Clear, crawlable and trustworthy websites are easier for answer engines to reference. These pages explain how ScanSite AI evaluates and improves that readiness.
+              Clear, crawlable and trustworthy websites are easier for answer engines to reference. These pages explain how ScanSiteAI evaluates and improves that readiness.
             </p>
           </div>
 

@@ -1,10 +1,12 @@
 import PublicInfoPage from "../_components/PublicInfoPage";
+import { createPageMetadata } from "../seo";
 
-export const metadata = {
-  title: "Testimonials",
-  description: "Testimonials and trust signal guidance for AI-ready websites.",
-  alternates: { canonical: "/testimonials" },
-};
+export const metadata = createPageMetadata({
+  title: "Trust Signals and Testimonials for AI-Ready Websites",
+  description: "ScanSiteAI guidance for testimonials, proof points and trust signals that help AI systems evaluate websites.",
+  path: "/testimonials",
+  keywords: ["AI trust signals", "testimonials for AI search", "EEAT testimonials", "AI-ready website proof"],
+});
 
 export default function TestimonialsPage() {
   return (

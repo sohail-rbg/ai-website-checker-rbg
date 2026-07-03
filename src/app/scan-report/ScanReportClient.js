@@ -1,29 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import toast, { Toaster } from "react-hot-toast";
 import SiteFooter from "../_components/SiteFooter";
 import SiteHeader from "../_components/SiteHeader";
 import { Dashboard } from "../_components/home/HomeClient";
 import styles from "../page.module.css";
-
-function formatDateTime(value) {
-  const date = value ? new Date(value) : new Date();
-  if (Number.isNaN(date.getTime())) return { date: "Not available", time: "Not available" };
-
-  return {
-    date: date.toLocaleDateString(undefined, {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    }),
-    time: date.toLocaleTimeString(undefined, {
-      hour: "2-digit",
-      minute: "2-digit",
-    }),
-  };
-}
 
 export default function ScanReportClient() {
   const [report, setReport] = useState(null);
@@ -41,8 +24,6 @@ export default function ScanReportClient() {
       }
     });
   }, []);
-
-  const scanned = useMemo(() => formatDateTime(report?.scannedAt), [report]);
 
   if (!ready) {
     return (
@@ -74,34 +55,8 @@ export default function ScanReportClient() {
     <main className={styles.shell}>
       <Toaster position="top-right" toastOptions={{ style: { background: "#020617", color: "#fff", border: "1px solid rgba(255,255,255,.14)" } }} />
       <div className={`${styles.heroGrid} pointer-events-none fixed inset-0`} />
-      <section className={`${styles.pageContainer} relative z-10 mx-auto px-5 pb-2 pt-8 sm:px-8`}>
+      <section className={`${styles.pageContainer} relative z-10 mx-auto px-5 pt-8 sm:px-8`}>
         <SiteHeader className="mx-auto mb-8 w-full" />
-        <div className="flex flex-col gap-4 border-b border-[#8B9C8C]/15 pb-6 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-sm uppercase tracking-[0.26em] text-[#8B9C8C]">AI readiness report</p>
-            <h1 className={`${styles.heroTitle} mt-2 text-3xl font-semibold text-white sm:text-5xl`}>
-              Website Analysis Report
-            </h1>
-          </div>
-          <Link href="/" className="inline-flex w-fit rounded-full border border-[#8B9C8C]/25 px-5 py-3 text-sm font-semibold text-[#d9e1d8] hover:bg-[#8B9C8C]/10">
-            Run another scan
-          </Link>
-        </div>
-
-        <div className="grid gap-3 py-6 text-sm sm:grid-cols-3">
-          <div className={`${styles.softGlass} rounded-2xl p-4`}>
-            <p className="text-xs uppercase tracking-[0.18em] text-[#8B9C8C]">URL</p>
-            <p className="mt-2 break-all font-semibold text-white">{report.finalUrl || report.scannedUrl}</p>
-          </div>
-          <div className={`${styles.softGlass} rounded-2xl p-4`}>
-            <p className="text-xs uppercase tracking-[0.18em] text-[#8B9C8C]">Date</p>
-            <p className="mt-2 font-semibold text-white">{scanned.date}</p>
-          </div>
-          <div className={`${styles.softGlass} rounded-2xl p-4`}>
-            <p className="text-xs uppercase tracking-[0.18em] text-[#8B9C8C]">Time</p>
-            <p className="mt-2 font-semibold text-white">{scanned.time}</p>
-          </div>
-        </div>
       </section>
 
       <Dashboard

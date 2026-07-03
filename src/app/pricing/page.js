@@ -1,10 +1,12 @@
 import PublicInfoPage from "../_components/PublicInfoPage";
+import { createPageMetadata } from "../seo";
 
-export const metadata = {
-  title: "Pricing",
-  description: "Pricing information for AI Website Readiness Checker reports and consultations.",
-  alternates: { canonical: "/pricing" },
-};
+export const metadata = createPageMetadata({
+  title: "ScanSiteAI Pricing",
+  description: "Pricing information for ScanSiteAI reports, AI readiness consultations and implementation support.",
+  path: "/pricing",
+  keywords: ["ScanSiteAI pricing", "AI website audit pricing", "AI readiness report cost", "LLM SEO consultation"],
+});
 
 export default function PricingPage() {
   return (

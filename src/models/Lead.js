@@ -22,28 +22,14 @@ const LeadSchema = new mongoose.Schema(
       platformScores: mongoose.Schema.Types.Mixed,
     },
     report: mongoose.Schema.Types.Mixed,
-    submissions: [
-      {
-        submittedAt: { type: Date, default: Date.now },
-        email: String,
-        website: String,
-        overallScore: Number,
-        grade: String,
-        wantsCall: Boolean,
-        topImprovements: [String],
-        platformScores: mongoose.Schema.Types.Mixed,
-        reportUrl: String,
-        emailSent: Boolean,
-        emailDelivery: mongoose.Schema.Types.Mixed,
-        report: mongoose.Schema.Types.Mixed,
-      },
-    ],
+    latestSubmission: { type: mongoose.Schema.Types.ObjectId, ref: "Submission" },
   },
   { timestamps: true }
 );
 
 LeadSchema.index({ email: 1, website: 1 }, { unique: true });
 LeadSchema.index({ createdAt: -1 });
+LeadSchema.index({ lastSubmittedAt: -1 });
 LeadSchema.index({ wantsCall: 1, createdAt: -1 });
 
-export default mongoose.models.Lead || mongoose.model("Lead", LeadSchema);
+export default mongoose.models.Lead || mongoose.model("Lead", LeadSchema, "Leads");

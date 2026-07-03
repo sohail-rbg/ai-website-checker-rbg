@@ -1,10 +1,12 @@
 import PublicInfoPage from "../_components/PublicInfoPage";
+import { createPageMetadata } from "../seo";
 
-export const metadata = {
-  title: "Documentation",
-  description: "Documentation for how AI Website Readiness Checker scans and scores public websites.",
-  alternates: { canonical: "/documentation" },
-};
+export const metadata = createPageMetadata({
+  title: "ScanSiteAI Documentation",
+  description: "Documentation for how ScanSiteAI scans and scores public websites for AI search and LLM readiness.",
+  path: "/documentation",
+  keywords: ["ScanSiteAI documentation", "AI readiness scoring", "AI crawler analysis docs", "LLM audit methodology"],
+});
 
 export default function DocumentationPage() {
   return (

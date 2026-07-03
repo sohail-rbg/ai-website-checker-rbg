@@ -21,17 +21,17 @@ export default function SiteHeader({ className = "" }) {
         ))}
       </nav>
 
-      <Link href="/" className={styles.logoSlot} aria-label="AI Website Readiness Checker home">
-        <Image src="/logo.png" alt="AI Website Readiness Checker logo" width={238} height={72} className="mx-auto h-12 w-auto sm:h-14" priority />
+      <Link href="/" className={styles.logoSlot} aria-label="ScanSiteAI home">
+        <Image src="/logo.png" alt="ScanSiteAI logo" width={238} height={72} className="mx-auto h-12 w-auto sm:h-14" priority />
       </Link>
 
       <div className={styles.headerActions}>
         <Link href="/coming-soon" className={styles.loginButton} aria-label="Login coming soon">
           <CircleUserRound size={22} strokeWidth={1.8} aria-hidden="true" />
         </Link>
-        <a href="mailto:info@scansiteai.com?subject=Book%20AI%20Readiness%20Demo" className={styles.demoButton}>
+        <Link href="/book-demo" className={styles.demoButton}>
           Book a demo
-        </a>
+        </Link>
       </div>
     </header>
   );

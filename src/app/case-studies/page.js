@@ -1,10 +1,12 @@
 import PublicInfoPage from "../_components/PublicInfoPage";
+import { createPageMetadata } from "../seo";
 
-export const metadata = {
-  title: "Case Studies",
-  description: "Case study themes for AI readiness improvements and LLM-friendly website structure.",
-  alternates: { canonical: "/case-studies" },
-};
+export const metadata = createPageMetadata({
+  title: "AI Readiness Case Studies",
+  description: "Case study themes for ScanSiteAI readiness improvements and LLM-friendly website structure.",
+  path: "/case-studies",
+  keywords: ["AI readiness case studies", "LLM website improvements", "schema implementation examples"],
+});
 
 export default function CaseStudiesPage() {
   return (

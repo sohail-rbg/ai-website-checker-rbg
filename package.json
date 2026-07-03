@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@amcharts/amcharts5": "^5.19.1",
     "@vercel/analytics": "^2.0.1",
     "@vercel/speed-insights": "^2.0.0",
     "axios": "^1.18.1",
@@ -24,7 +25,6 @@
     "react-dom": "19.2.4",
     "react-hook-form": "^7.80.0",
     "react-hot-toast": "^2.6.0",
-    "recharts": "^3.9.1",
     "robots-parser": "^3.0.1",
     "xml2js": "^0.6.2"
   },

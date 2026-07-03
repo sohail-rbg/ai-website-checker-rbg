@@ -1,14 +1,18 @@
 import Link from "next/link";
 import { connectToDatabase } from "@/lib/db";
 import Lead from "@/models/Lead";
+import Submission from "@/models/Submission";
+import { createPageMetadata } from "../seo";
 
 export const runtime = "nodejs";
-export const metadata = {
-  title: "Protected Leads",
-  description: "Protected lead management view for ScanSite AI report requests.",
-  alternates: { canonical: "/leads" },
-  robots: { index: false, follow: false },
-};
+export const metadata = createPageMetadata({
+  title: "Protected ScanSiteAI Leads",
+  description: "Protected lead management view for ScanSiteAI report requests, demo follow-ups and complete report links.",
+  path: "/leads",
+  keywords: ["ScanSiteAI leads", "AI report requests", "protected lead inbox"],
+  index: false,
+  follow: false,
+});
 
 function formatDateTime(value) {
   const date = value ? new Date(value) : null;
@@ -46,34 +50,40 @@ export default async function LeadsPage({ searchParams }) {
   const leads = await Lead.find({})
     .sort({ updatedAt: -1 })
     .limit(100)
-    .select("email website overallScore wantsCall emailSent submissionCount createdAt updatedAt lastSubmittedAt reportUrl submissions report")
+    .select("email website overallScore wantsCall emailSent submissionCount createdAt updatedAt lastSubmittedAt reportUrl report")
     .lean();
 
-  const entries = leads
-    .flatMap((lead) => {
+  const leadIds = leads.map((lead) => lead._id);
+  const submissions = await Submission.find({ lead: { $in: leadIds } })
+    .sort({ submittedAt: -1 })
+    .limit(500)
+    .select("lead email website overallScore grade wantsCall emailSent submittedAt report")
+    .lean();
+
+  const leadIdsWithSubmissions = new Set(submissions.map((submission) => String(submission.lead)));
+  const submissionEntries = submissions.map((submission) => ({
+    id: String(submission._id),
+    leadId: String(submission.lead),
+    submissionId: String(submission._id),
+    email: submission.email,
+    website: submission.website,
+    overallScore: submission.overallScore,
+    grade: submission.grade || submission.report?.grade || "N/A",
+    wantsCall: Boolean(submission.wantsCall),
+    emailSent: Boolean(submission.emailSent),
+    submittedAt: submission.submittedAt,
+    hasReport: Boolean(submission.report && Object.keys(submission.report).length),
+  }));
+
+  const legacyEntries = leads
+    .filter((lead) => !leadIdsWithSubmissions.has(String(lead._id)))
+    .map((lead) => {
       const leadId = String(lead._id);
-      const submissions = Array.isArray(lead.submissions) ? lead.submissions : [];
 
-      if (submissions.length) {
-        return submissions.map((submission, index) => ({
-          id: `${leadId}-${index}`,
-          leadId,
-          submissionIndex: index,
-          email: submission.email || lead.email,
-          website: submission.website || lead.website,
-          overallScore: submission.overallScore ?? lead.overallScore,
-          grade: submission.grade || submission.report?.grade || lead.report?.grade || "N/A",
-          wantsCall: Boolean(submission.wantsCall),
-          emailSent: Boolean(submission.emailSent),
-          submittedAt: submission.submittedAt || lead.lastSubmittedAt || lead.createdAt,
-          hasReport: Boolean(submission.report && Object.keys(submission.report).length),
-        }));
-      }
-
-      return [{
+      return {
         id: leadId,
         leadId,
-        submissionIndex: "",
+        submissionId: "",
         email: lead.email,
         website: lead.website,
         overallScore: lead.overallScore,
@@ -82,8 +92,10 @@ export default async function LeadsPage({ searchParams }) {
         emailSent: Boolean(lead.emailSent),
         submittedAt: lead.lastSubmittedAt || lead.createdAt,
         hasReport: Boolean(lead.report && Object.keys(lead.report).length),
-      }];
-    })
+      };
+    });
+
+  const entries = [...submissionEntries, ...legacyEntries]
     .sort((a, b) => new Date(b.submittedAt || 0) - new Date(a.submittedAt || 0));
 
   const callRequests = entries.filter((entry) => entry.wantsCall).length;
@@ -135,9 +147,9 @@ export default async function LeadsPage({ searchParams }) {
             <tbody>
               {entries.map((entry) => {
                 const submitted = formatDateTime(entry.submittedAt);
-                const reportHref = entry.submissionIndex === ""
-                  ? `/report/${entry.leadId}`
-                  : `/report/${entry.leadId}?submission=${entry.submissionIndex}`;
+                const reportHref = entry.submissionId
+                  ? `/report/${entry.leadId}?submission=${entry.submissionId}`
+                  : `/report/${entry.leadId}`;
 
                 return (
                 <tr key={entry.id} className="border-t border-[#8B9C8C]/12 text-[#d9e1d8]">

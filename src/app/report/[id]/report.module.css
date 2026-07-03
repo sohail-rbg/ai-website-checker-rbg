@@ -1,9 +1,12 @@
 .page {
   min-height: 100vh;
-  padding: 32px;
-  background: #f6f7f4;
-  color: #111827;
-  font-family: Arial, sans-serif;
+  padding: 28px 32px 36px;
+  background:
+    radial-gradient(circle at 16% 18%, rgba(46, 94, 83, 0.22), transparent 30rem),
+    radial-gradient(circle at 84% 10%, rgba(38, 42, 83, 0.24), transparent 34rem),
+    linear-gradient(180deg, #020302, #050806 58%, #020302);
+  color: #f5f7f4;
+  font-family: var(--font-space-grotesk), Arial, sans-serif;
 }
 
 .actions {
@@ -15,13 +18,20 @@
 }
 
 .action {
-  border: 1px solid #d1d5db;
+  border: 1px solid rgba(144, 238, 154, 0.28);
   border-radius: 999px;
-  background: white;
-  color: #111827;
-  padding: 10px 16px;
+  background: rgba(144, 238, 154, 0.08);
+  color: #d9e1d8;
+  padding: 11px 17px;
   font-weight: 700;
   text-decoration: none;
+  transition: background .2s ease, border-color .2s ease, color .2s ease;
+}
+
+.action:hover {
+  border-color: rgba(144, 238, 154, 0.52);
+  background: rgba(144, 238, 154, 0.14);
+  color: #ffffff;
 }
 
 .hero,
@@ -32,33 +42,66 @@
 }
 
 .hero {
+  position: relative;
   display: grid;
   gap: 24px;
   align-items: end;
-  border-radius: 28px;
-  background: #020302;
+  overflow: hidden;
+  border: 1px solid rgba(139, 156, 140, 0.14);
+  border-radius: 32px;
+  background:
+    radial-gradient(circle at 88% 12%, rgba(144, 238, 154, 0.12), transparent 24rem),
+    linear-gradient(135deg, rgba(9, 20, 17, 0.96), rgba(2, 3, 2, 0.98));
   color: white;
-  padding: 40px;
+  padding: clamp(28px, 4vw, 52px);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.34);
+}
+
+.hero::before {
+  position: absolute;
+  inset: 0;
+  content: "";
+  pointer-events: none;
+  opacity: 0.25;
+  background-image: radial-gradient(circle, rgba(144, 238, 154, 0.22) 1px, transparent 1.5px);
+  background-size: 18px 18px;
+  mask-image: radial-gradient(circle at 8% 0%, black, transparent 36%);
 }
 
 .hero p {
+  position: relative;
   margin: 0;
-  color: #8B9C8C;
-  letter-spacing: .18em;
+  color: #9fe0a8;
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: .28em;
   text-transform: uppercase;
 }
 
 .hero h1 {
+  position: relative;
   overflow-wrap: anywhere;
   margin: 0;
-  font-size: clamp(32px, 6vw, 68px);
+  max-width: 1100px;
+  font-size: clamp(2.2rem, 5.2vw, 4.6rem);
+  font-weight: 650;
+  line-height: 1.04;
+}
+
+.score {
+  position: relative;
 }
 
 .score strong {
   display: block;
-  color: #8B9C8C;
-  font-size: 72px;
+  color: #9fe0a8;
+  font-size: clamp(3.4rem, 6vw, 5.2rem);
   line-height: 1;
+}
+
+.score span {
+  color: rgba(217, 225, 216, 0.78);
+  font-weight: 700;
 }
 
 .grid,
@@ -71,24 +114,46 @@
 .field,
 .cards article,
 .recommendations article {
-  border: 1px solid #e5e7eb;
-  border-radius: 18px;
-  background: white;
-  padding: 18px;
+  border: 1px solid rgba(139, 156, 140, 0.14);
+  border-radius: 22px;
+  background: linear-gradient(145deg, rgba(11, 20, 17, 0.92), rgba(4, 8, 6, 0.86));
+  padding: 20px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .field span,
 .cards span {
   display: block;
   margin-bottom: 8px;
-  color: #6b7280;
+  color: rgba(139, 156, 140, 0.92);
   font-size: 12px;
-  letter-spacing: .12em;
+  font-weight: 800;
+  letter-spacing: .18em;
   text-transform: uppercase;
 }
 
+.field strong {
+  display: block;
+  overflow-wrap: anywhere;
+  color: #ffffff;
+}
+
+.section h2 {
+  margin: 28px 0 14px;
+  color: #ffffff;
+  font-size: 1.35rem;
+  font-weight: 750;
+}
+
 .cards strong {
+  color: #ffffff;
   font-size: 34px;
+}
+
+.cards p,
+.recommendations p,
+.recommendations dd {
+  color: rgba(217, 225, 216, 0.76);
 }
 
 .bars {
@@ -107,14 +172,19 @@
   height: 10px;
   overflow: hidden;
   border-radius: 999px;
-  background: #e5e7eb;
+  background: rgba(139, 156, 140, 0.14);
 }
 
 .bars i {
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: #2E5E53;
+  background: linear-gradient(90deg, #2E5E53, #9fe0a8);
+}
+
+.bars span,
+.bars strong {
+  color: rgba(217, 225, 216, 0.86);
 }
 
 .recommendations {
@@ -124,6 +194,7 @@
 
 .recommendations h3 {
   margin-top: 0;
+  color: #ffffff;
 }
 
 .recommendations dl {
@@ -132,6 +203,7 @@
 }
 
 .recommendations dt {
+  color: #9fe0a8;
   font-weight: 700;
 }
 
@@ -146,6 +218,22 @@
 
   .page {
     background: white;
+    color: #111827;
     padding: 0;
+  }
+}
+
+@media (max-width: 720px) {
+  .page {
+    padding: 20px 16px 28px;
+  }
+
+  .actions {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .bars > div {
+    grid-template-columns: 1fr;
   }
 }

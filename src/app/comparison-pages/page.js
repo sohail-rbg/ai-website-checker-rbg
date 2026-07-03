@@ -1,10 +1,12 @@
 import PublicInfoPage from "../_components/PublicInfoPage";
+import { createPageMetadata } from "../seo";
 
-export const metadata = {
-  title: "Comparison Pages",
-  description: "Comparison page guidance for AI search visibility and answer-engine context.",
-  alternates: { canonical: "/comparison-pages" },
-};
+export const metadata = createPageMetadata({
+  title: "Comparison Page Guidance for AI Search",
+  description: "ScanSiteAI guidance for comparison pages that improve AI search visibility and answer-engine context.",
+  path: "/comparison-pages",
+  keywords: ["comparison page SEO", "AI answer comparison pages", "LLM product comparison content"],
+});
 
 export default function ComparisonPagesPage() {
   return (

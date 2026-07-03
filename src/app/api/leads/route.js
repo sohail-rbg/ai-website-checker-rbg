@@ -1,5 +1,6 @@
 import { connectToDatabase } from "@/lib/db";
 import Lead from "@/models/Lead";
+import Submission from "@/models/Submission";
 
 export const runtime = "nodejs";
 
@@ -17,8 +18,20 @@ export async function GET(request) {
   const leads = await Lead.find({})
     .sort({ updatedAt: -1 })
     .limit(100)
-    .select("email website overallScore wantsCall emailSent submissionCount createdAt updatedAt lastSubmittedAt summary reportUrl report submissions")
+    .select("email website overallScore wantsCall emailSent submissionCount createdAt updatedAt lastSubmittedAt summary reportUrl report latestSubmission")
     .lean();
+  const leadIds = leads.map((lead) => lead._id);
+  const submissions = await Submission.find({ lead: { $in: leadIds } })
+    .sort({ submittedAt: -1 })
+    .limit(500)
+    .select("lead email website overallScore grade wantsCall emailSent reportUrl submittedAt")
+    .lean();
+
+  const submissionCounts = submissions.reduce((counts, submission) => {
+    const leadId = String(submission.lead);
+    counts[leadId] = (counts[leadId] || 0) + 1;
+    return counts;
+  }, {});
 
   return Response.json({
     leads: leads.map((lead) => ({
@@ -35,7 +48,20 @@ export async function GET(request) {
       summary: lead.summary,
       reportUrl: lead.reportUrl,
       hasReport: Boolean(lead.report && Object.keys(lead.report).length),
-      storedSubmissions: Array.isArray(lead.submissions) ? lead.submissions.length : 0,
+      latestSubmission: lead.latestSubmission ? String(lead.latestSubmission) : null,
+      storedSubmissions: submissionCounts[String(lead._id)] || 0,
+    })),
+    submissions: submissions.map((submission) => ({
+      _id: String(submission._id),
+      leadId: String(submission.lead),
+      email: submission.email,
+      website: submission.website,
+      overallScore: submission.overallScore,
+      grade: submission.grade,
+      wantsCall: submission.wantsCall,
+      emailSent: submission.emailSent,
+      reportUrl: submission.reportUrl,
+      submittedAt: submission.submittedAt,
     })),
   });
 }

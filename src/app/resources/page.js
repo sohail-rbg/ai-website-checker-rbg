@@ -1,10 +1,12 @@
 import PublicInfoPage from "../_components/PublicInfoPage";
+import { createPageMetadata } from "../seo";
 
-export const metadata = {
-  title: "Resources",
-  description: "Resources for improving AI search visibility, schema coverage, content clarity and LLM crawlability.",
-  alternates: { canonical: "/resources" },
-};
+export const metadata = createPageMetadata({
+  title: "AI Search Visibility Resources",
+  description: "ScanSiteAI resources for improving AI search visibility, schema coverage, content clarity and LLM crawlability.",
+  path: "/resources",
+  keywords: ["AI search resources", "LLM crawlability checklist", "schema resources", "AI visibility checklist"],
+});
 
 export default function ResourcesPage() {
   return (

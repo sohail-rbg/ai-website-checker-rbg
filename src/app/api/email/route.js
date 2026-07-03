@@ -1,6 +1,7 @@
 import nodemailer from "nodemailer";
 import { connectToDatabase } from "@/lib/db";
 import Lead from "@/models/Lead";
+import Submission from "@/models/Submission";
 import { checkRateLimit, clientKey } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
@@ -80,6 +81,8 @@ function databaseErrorPayload(error, code) {
     errorText = "MongoDB connection timed out. Check Atlas Network Access/IP allowlist for Vercel.";
   } else if (error?.name === "ValidationError") {
     errorText = "Lead data validation failed before saving.";
+  } else if (lower.includes("bson") || lower.includes("maximum size") || lower.includes("object to insert too large")) {
+    errorText = "The report is too large for the current database write. Please retry after the latest storage update is deployed.";
   } else if (error?.code === 11000) {
     errorText = "This lead already exists, but the report could not be updated.";
   }
@@ -124,7 +127,7 @@ function buildReportEmail({ website, overallScore, grade, topImprovements, repor
     "Detailed Recommendations:",
     ...recommendations.map((item, index) => `${index + 1}. ${item.title} - ${item.howToFix || item.description}`),
     "",
-    "Thank you for using AI Website Readiness Checker.",
+    "Thank you for using ScanSiteAI.",
   ].join("\n");
 
   const html = `
@@ -135,7 +138,7 @@ function buildReportEmail({ website, overallScore, grade, topImprovements, repor
             <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:760px;border-collapse:collapse">
               <tr>
                 <td style="border-radius:28px 28px 0 0;background:#020302;background-image:linear-gradient(135deg,#020302,#11231f 56%,#262a53);padding:34px 30px;color:#ffffff">
-                  <p style="margin:0 0 12px;color:#8B9C8C;font-size:12px;font-weight:700;letter-spacing:.22em;text-transform:uppercase">AI Website Readiness Checker</p>
+                  <p style="margin:0 0 12px;color:#8B9C8C;font-size:12px;font-weight:700;letter-spacing:.22em;text-transform:uppercase">ScanSiteAI</p>
                   <h1 style="margin:0;font-size:34px;line-height:1.08;letter-spacing:-.02em;color:#ffffff">Your Complete AI Readiness Report</h1>
                   <p style="margin:14px 0 0;color:#d9e1d8;font-size:15px;line-height:1.7;word-break:break-word">${escapeHtml(website)}</p>
                   <table role="presentation" cellspacing="0" cellpadding="0" style="margin-top:24px">
@@ -220,7 +223,7 @@ function buildReportEmail({ website, overallScore, grade, topImprovements, repor
               </tr>
               <tr>
                 <td style="border-radius:0 0 28px 28px;background:#111827;padding:18px 30px;color:#9ca3af;font-size:12px;text-align:center">
-                  Thank you for using AI Website Readiness Checker.
+                  Thank you for using ScanSiteAI.
                 </td>
               </tr>
             </table>
@@ -235,7 +238,7 @@ function buildReportEmail({ website, overallScore, grade, topImprovements, repor
 
 function buildAdminLeadEmail({ email, website, overallScore, grade, wantsCall, reportUrl, leadId, topImprovements }) {
   const text = [
-    "New AI Website Checker Lead",
+    "New ScanSiteAI Lead",
     "",
     `Email: ${email}`,
     `Website: ${website}`,
@@ -258,7 +261,7 @@ function buildAdminLeadEmail({ email, website, overallScore, grade, wantsCall, r
               <tr>
                 <td style="border-radius:24px 24px 0 0;background:#020302;background-image:linear-gradient(135deg,#020302,#11231f 62%,#2E5E53);padding:30px;color:#ffffff">
                   <p style="margin:0 0 10px;color:#8B9C8C;font-size:12px;font-weight:800;letter-spacing:.2em;text-transform:uppercase">New Lead</p>
-                  <h1 style="margin:0;font-size:30px;line-height:1.12;color:#ffffff">AI Website Checker Submission</h1>
+                  <h1 style="margin:0;font-size:30px;line-height:1.12;color:#ffffff">ScanSiteAI Submission</h1>
                   <p style="margin:12px 0 0;color:#d9e1d8;font-size:15px;word-break:break-word">${escapeHtml(website)}</p>
                 </td>
               </tr>
@@ -361,19 +364,6 @@ export async function POST(request) {
             report: fullReport,
           },
           $inc: { submissionCount: 1 },
-          $push: {
-            submissions: {
-              submittedAt,
-              email,
-              website,
-              overallScore,
-              grade: body.grade,
-              wantsCall: Boolean(body.wantsCall),
-              topImprovements,
-              platformScores: body.platformScores || {},
-              report: fullReport,
-            },
-          },
         },
         { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
       );
@@ -382,8 +372,33 @@ export async function POST(request) {
       return Response.json(databaseErrorPayload(error, "LEAD_SAVE_FAILED"), { status: 500 });
     }
 
+    try {
+      await Lead.collection.updateOne({ _id: lead._id }, { $unset: { submissions: "" } });
+    } catch (error) {
+      console.error("Legacy embedded submissions cleanup failed", error);
+    }
+
+    let submission;
+    try {
+      submission = await Submission.create({
+        lead: lead._id,
+        submittedAt,
+        email,
+        website,
+        overallScore,
+        grade: body.grade,
+        wantsCall: Boolean(body.wantsCall),
+        topImprovements,
+        platformScores: body.platformScores || {},
+        report: fullReport,
+      });
+    } catch (error) {
+      console.error("Report submission save failed", error);
+      return Response.json(databaseErrorPayload(error, "SUBMISSION_SAVE_FAILED"), { status: 500 });
+    }
+
     const origin = request.headers.get("origin") || new URL(request.url).origin;
-    const reportUrl = `${origin}/report/${lead._id}`;
+    const reportUrl = `${origin}/report/${lead._id}?submission=${submission._id}`;
 
     let transporter = null;
     try {
@@ -432,7 +447,7 @@ export async function POST(request) {
       const adminDelivery = await trySendMail(transporter, {
         from: process.env.SMTP_FROM?.trim(),
         to: adminEmail,
-        subject: `New AI Website Checker Lead: ${website}`,
+        subject: `New ScanSiteAI Lead: ${website}`,
         text: adminReport.text,
         html: adminReport.html,
       }, "admin notification");
@@ -451,16 +466,17 @@ export async function POST(request) {
             reportUrl,
             emailSent,
             emailDelivery: delivery,
+            latestSubmission: submission._id,
           },
         }
       );
-      await Lead.updateOne(
-        { _id: lead._id, "submissions.submittedAt": submittedAt },
+      await Submission.updateOne(
+        { _id: submission._id },
         {
           $set: {
-            "submissions.$.reportUrl": reportUrl,
-            "submissions.$.emailSent": emailSent,
-            "submissions.$.emailDelivery": delivery,
+            reportUrl,
+            emailSent,
+            emailDelivery: delivery,
           },
         }
       );
@@ -472,6 +488,7 @@ export async function POST(request) {
     return Response.json({
       ok: true,
       leadId: String(lead._id),
+      submissionId: String(submission._id),
       reportUrl,
       emailSent,
       delivery,

@@ -1,9 +1,9 @@
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://ai-website-checker.vercel.app";
 
 export function GET() {
-  const body = `# AI Website Readiness Checker
+  const body = `# ScanSiteAI
 
-AI Website Readiness Checker is a live technical audit tool for AI search and LLM visibility.
+ScanSiteAI is a live technical audit tool for AI search and LLM visibility.
 
 ## Purpose
 The application analyzes whether ChatGPT, Claude, Gemini, Perplexity, Google AI Overview, Microsoft Copilot and other answer engines can crawl, understand, reference and recommend a website.
@@ -28,7 +28,7 @@ The application analyzes whether ChatGPT, Claude, Gemini, Perplexity, Google AI 
 
 ## Contact
 Email: info@scansiteai.com
-Provider: Rebrand Gurus
+Provider: ScanSiteAI
 `;
 
   return new Response(body, {

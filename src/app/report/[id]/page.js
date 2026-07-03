@@ -3,8 +3,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import SiteFooter from "@/app/_components/SiteFooter";
 import SiteHeader from "@/app/_components/SiteHeader";
+import { createPageMetadata } from "@/app/seo";
 import { connectToDatabase } from "@/lib/db";
 import Lead from "@/models/Lead";
+import Submission from "@/models/Submission";
 import PrintButton from "./PrintButton";
 import styles from "./report.module.css";
 
@@ -43,12 +45,20 @@ async function getReportLead(id) {
   return lead;
 }
 
+async function getReportSubmission(id, submissionId) {
+  if (!submissionId || !mongoose.Types.ObjectId.isValid(submissionId)) return null;
+
+  await connectToDatabase();
+  return Submission.findOne({ _id: submissionId, lead: id }).lean();
+}
+
 export async function generateMetadata({ params }) {
   const { id } = await params;
   if (!mongoose.Types.ObjectId.isValid(id)) {
     return {
       title: "AI Readiness Report Not Found",
-      description: "The requested ScanSite AI report could not be found.",
+      description: "The requested ScanSiteAI report could not be found.",
+      keywords: ["ScanSiteAI report", "AI readiness report not found"],
       robots: { index: false, follow: false },
     };
   }
@@ -57,7 +67,8 @@ export async function generateMetadata({ params }) {
   if (!lead) {
     return {
       title: "AI Readiness Report Not Found",
-      description: "The requested ScanSite AI report could not be found.",
+      description: "The requested ScanSiteAI report could not be found.",
+      keywords: ["ScanSiteAI report", "AI readiness report not found"],
       robots: { index: false, follow: false },
     };
   }
@@ -65,21 +76,14 @@ export async function generateMetadata({ params }) {
   const website = lead.website || "Website";
   const score = Number.isFinite(Number(lead.overallScore)) ? `${lead.overallScore}/100` : "available";
 
-  return {
+  return createPageMetadata({
     title: `${website} AI Readiness Report`,
-    description: `ScanSite AI readiness report for ${website}. Overall score ${score}, with AI platform scores, technical checks and prioritized recommendations.`,
-    alternates: { canonical: `/report/${id}` },
-    robots: { index: false, follow: true },
-    openGraph: {
-      title: `${website} AI Readiness Report`,
-      description: `Overall AI website readiness score: ${score}. Review crawler access, schema, EEAT, entities and content recommendations.`,
-      url: `/report/${id}`,
-    },
-    twitter: {
-      title: `${website} AI Readiness Report`,
-      description: `Overall AI website readiness score: ${score}.`,
-    },
-  };
+    description: `ScanSiteAI readiness report for ${website}. Overall score ${score}, with AI platform scores, technical checks and prioritized recommendations.`,
+    path: `/report/${id}`,
+    keywords: ["ScanSiteAI report", `${website} AI readiness report`, "AI platform scores", "technical AI audit"],
+    index: false,
+    follow: true,
+  });
 }
 
 export default async function ReportPage({ params, searchParams }) {
@@ -90,11 +94,7 @@ export default async function ReportPage({ params, searchParams }) {
   const lead = await getReportLead(id);
   if (!lead) notFound();
 
-  const submissionIndex = Number(query?.submission);
-  const submissions = Array.isArray(lead.submissions) ? lead.submissions : [];
-  const selectedSubmission = Number.isInteger(submissionIndex) && submissionIndex >= 0
-    ? submissions[submissionIndex]
-    : null;
+  const selectedSubmission = await getReportSubmission(id, query?.submission);
   const report = selectedSubmission?.report || lead.report || {};
   const website = selectedSubmission?.website || lead.website;
   const overallScore = selectedSubmission?.overallScore ?? lead.overallScore;
@@ -112,7 +112,7 @@ export default async function ReportPage({ params, searchParams }) {
       </div>
 
       <section className={styles.hero}>
-        <p>AI Website Readiness Checker</p>
+        <p>ScanSiteAI report</p>
         <h1>{website}</h1>
         <div className={styles.score}>
           <strong>{overallScore}</strong>

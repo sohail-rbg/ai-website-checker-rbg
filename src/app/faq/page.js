@@ -1,10 +1,12 @@
 import PublicInfoPage from "../_components/PublicInfoPage";
+import { createPageMetadata } from "../seo";
 
-export const metadata = {
-  title: "FAQ",
-  description: "Frequently asked questions about AI website readiness, LLM search visibility and answer-engine audits.",
-  alternates: { canonical: "/faq" },
-};
+export const metadata = createPageMetadata({
+  title: "ScanSiteAI FAQ",
+  description: "Frequently asked questions about ScanSiteAI, AI website readiness, LLM search visibility and answer-engine audits.",
+  path: "/faq",
+  keywords: ["ScanSiteAI FAQ", "AI readiness questions", "LLM search audit FAQ", "answer engine optimization FAQ"],
+});
 
 export default function FaqPage() {
   return (

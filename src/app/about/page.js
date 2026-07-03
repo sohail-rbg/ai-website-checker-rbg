@@ -1,16 +1,18 @@
 import PublicInfoPage from "../_components/PublicInfoPage";
+import { createPageMetadata } from "../seo";
 
-export const metadata = {
-  title: "About",
-  description: "About AI Website Readiness Checker, a Rebrand Gurus tool for AI search and LLM visibility audits.",
-  alternates: { canonical: "/about" },
-};
+export const metadata = createPageMetadata({
+  title: "About ScanSiteAI",
+  description: "Learn how ScanSiteAI helps websites become clearer, crawlable and trustworthy for AI search engines and LLM answer systems.",
+  path: "/about",
+  keywords: ["about ScanSiteAI", "AI search audit company", "LLM visibility platform", "AI readiness consultant"],
+});
 
 export default function AboutPage() {
   return (
     <PublicInfoPage
-      eyebrow="About Rebrand Gurus"
-      title="AI Website Readiness Checker helps websites become understandable to answer engines."
+      eyebrow="About ScanSiteAI"
+      title="ScanSiteAI helps websites become understandable to answer engines."
       description="The application was built for founders, agencies and marketing teams that need practical AI search visibility guidance from real technical signals."
       sections={[
         {

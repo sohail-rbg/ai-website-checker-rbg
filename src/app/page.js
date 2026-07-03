@@ -1,22 +1,13 @@
 import HomeClient from "./_components/home/HomeClient";
+import { createPageMetadata } from "./seo";
 
-export const metadata = {
-  title: "AI Website Readiness Checker for ChatGPT, Claude, Gemini and AI Search",
+export const metadata = createPageMetadata({
+  title: "ScanSiteAI - AI Website Readiness Checker for ChatGPT, Claude, Gemini and AI Search",
   description:
-    "Run a live AI website readiness audit for robots.txt, sitemap.xml, metadata, schema, content clarity, EEAT, entities, internal links, images and performance.",
-  alternates: { canonical: "/" },
-  openGraph: {
-    title: "AI Website Readiness Checker",
-    description:
-      "Analyze whether ChatGPT, Claude, Gemini, Perplexity, Google AI Overview and Copilot can crawl, understand and recommend your website.",
-    url: "/",
-  },
-  twitter: {
-    title: "AI Website Readiness Checker",
-    description:
-      "Live AI search readiness audits for LLM crawlers, schema, content structure, EEAT and entity signals.",
-  },
-};
+    "Run a live ScanSiteAI audit for robots.txt, sitemap.xml, metadata, schema, content clarity, EEAT, entities, internal links, images and performance.",
+  path: "/",
+  keywords: ["free AI website checker", "AI crawler audit", "LLM readiness report", "AI search visibility tool"],
+});
 
 export default function HomePage() {
   return <HomeClient />;
