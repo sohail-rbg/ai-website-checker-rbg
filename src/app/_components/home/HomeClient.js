@@ -8,24 +8,26 @@ import { useForm } from "react-hook-form";
 import toast, { Toaster } from "react-hot-toast";
 import {
   ArrowRight,
-  BadgeCheck,
   Bot,
+  CalendarDays,
   CheckCircle2,
+  Clock3,
   CircleAlert,
   Code2,
   Database,
+  ExternalLink,
   FileText,
   Globe2,
   Layers3,
   Lightbulb,
   Lock,
   Mail,
-  RadioTower,
   RefreshCw,
-  Repeat2,
   ScanSearch,
   ShieldCheck,
   Sparkles,
+  Star,
+  Target,
   TrendingUp,
   UserRound,
   Zap,
@@ -147,12 +149,6 @@ function TrustIcon({ type }) {
   return <Icon size={22} strokeWidth={1.8} aria-hidden="true" />;
 }
 
-function MetricIcon({ type }) {
-  const icons = { redirect: Repeat2, beacon: RadioTower, globe: Globe2 };
-  const Icon = icons[type] || Globe2;
-  return <Icon size={38} strokeWidth={1.7} aria-hidden="true" />;
-}
-
 const trustHighlights = [
   ["bolt", "Quick Results", "Get actionable insights in minutes."],
   ["shield", "Secure & Private", "We never store your data."],
@@ -221,6 +217,45 @@ function platformBrandColor(platform) {
     "Microsoft Copilot": 0x7c3aed,
   };
   return colors[platform] || 0x90ee9a;
+}
+
+function toExternalUrl(value) {
+  try {
+    return new URL(value).toString();
+  } catch {
+    return null;
+  }
+}
+
+function hostnameForUrl(value) {
+  try {
+    return new URL(value).hostname.replace(/^www\./i, "");
+  } catch {
+    return "";
+  }
+}
+
+function faviconUrlFor(value) {
+  try {
+    const url = new URL(value);
+    return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(url.hostname)}&sz=128`;
+  } catch {
+    return "";
+  }
+}
+
+function readinessSummary(report, primary) {
+  const host = hostnameForUrl(report.finalUrl) || "This website";
+  const score = Number(report.overallScore) || 0;
+  const level = score >= 90 ? "highly ready" : score >= 75 ? "well positioned" : score >= 55 ? "partially ready" : "not yet ready";
+  const strengths = Object.entries(report.scoreBreakdown || {})
+    .filter(([, value]) => Number(value) >= 85)
+    .map(([key]) => formatScoreLabel(key))
+    .slice(0, 2);
+  const strengthText = strengths.length ? ` Strongest signals: ${strengths.join(" and ")}.` : "";
+  const nextText = primary?.title ? ` Next best action: ${primary.title}.` : "";
+
+  return `${host} is ${level} for AI discovery.${strengthText}${nextText}`;
 }
 
 function SignalRow({ type, children }) {
@@ -377,6 +412,7 @@ function HeroCtaBand() {
 }
 
 export function Dashboard({ report, onReset }) {
+  const [failedFaviconUrl, setFailedFaviconUrl] = useState("");
   const breakdown = useMemo(
     () => Object.entries(report.scoreBreakdown).map(([name, value]) => ({ name: formatScoreLabel(name), value })),
     [report]
@@ -397,112 +433,257 @@ export function Dashboard({ report, onReset }) {
   }, [report]);
   const radar = breakdown.filter((item) => ["Metadata", "Schema", "Content", "EEAT", "Entities", "Robots", "Performance"].includes(item.name));
   const visibleRecommendations = report.recommendations.slice(0, 1);
+  const primaryRecommendation = visibleRecommendations[0];
   const hiddenCount = Math.max(report.recommendations.length - 1, 0);
   const scannedAt = report.scannedAt ? new Date(report.scannedAt) : null;
   const scannedLabel = scannedAt && !Number.isNaN(scannedAt.getTime())
     ? scannedAt.toLocaleString()
     : "Just now";
+  const scannedDateLabel = scannedAt && !Number.isNaN(scannedAt.getTime())
+    ? scannedAt.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })
+    : "Just now";
+  const scannedTimeLabel = scannedAt && !Number.isNaN(scannedAt.getTime())
+    ? scannedAt.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })
+    : "";
+  const scannedUrl = toExternalUrl(report.finalUrl);
+  const scannedHost = hostnameForUrl(report.finalUrl);
+  const candidateFaviconUrl = faviconUrlFor(report.finalUrl);
+  const faviconUrl = candidateFaviconUrl === failedFaviconUrl ? "" : candidateFaviconUrl;
+  const platformLeaders = [...(report.platformScores || [])].sort((a, b) => Number(b.score) - Number(a.score)).slice(0, 6);
+  const scoreBand = Number(report.overallScore) >= 90 ? "Excellent" : Number(report.overallScore) >= 75 ? "Strong" : Number(report.overallScore) >= 55 ? "Improving" : "Needs work";
+  const scoreTone = Number(report.overallScore) >= 75 ? "Your website is well optimized for AI discovery." : "Your website has clear opportunities to improve AI discovery.";
+  const keyStrengths = [
+    {
+      icon: Target,
+      label: platformLeaders[0] ? `${platformLeaders[0].platform} visibility signals` : "Strong visibility signals",
+    },
+    {
+      icon: ShieldCheck,
+      label: report.eeat?.score >= 70 ? "Trust & authority" : "Technical crawl foundation",
+    },
+  ];
+  const previewImage = report.preview?.image || "";
+  const dynamicSummary = readinessSummary(report, primaryRecommendation);
+
+  async function copyScannedUrl() {
+    if (!scannedUrl) return;
+    try {
+      await navigator.clipboard.writeText(scannedUrl);
+      toast.success("Scanned URL copied.");
+    } catch {
+      toast.error("Could not copy URL.");
+    }
+  }
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="pb-16">
       <section className={`${styles.pageContainer} mx-auto px-5 py-8 sm:px-8`}>
-        <div className="mb-8 flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <div className="flex items-center gap-4">
-              <span className="h-9 w-1 rounded-full bg-[#90ee9a]" />
-              <h2 className="text-3xl font-semibold tracking-tight text-white">Report Dashboard</h2>
+        <div className="relative overflow-hidden rounded-[2rem]  shadow-[0_24px_70px_rgba(0,0,0,.30)] sm:p-7">
+          {/* <div className="pointer-events-none absolute inset-0 opacity-20 [background-image:radial-gradient(circle_at_center,rgba(144,238,154,.14)_1px,transparent_1.5px)] [background-size:18px_18px] [mask-image:radial-gradient(circle_at_15%_28%,black,transparent_24%)]" /> */}
+          <div className="relative mb-8 flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div className="flex items-center gap-4">
+                <span className="h-9 w-1 rounded-full bg-[#90ee9a]" />
+                <h2 className="text-3xl font-semibold tracking-tight text-white">Report Dashboard</h2>
+              </div>
+              <p className="mt-3 text-base text-[#d9e1d8]/72">Overview of your AI Website Readiness scan and next best action.</p>
             </div>
-            <p className="mt-3 text-base text-[#d9e1d8]/72">Overview of your AI Website Readiness scan and next best action.</p>
+            <button onClick={onReset} className="inline-flex w-fit items-center gap-3 rounded-full border border-[#90ee9a]/25 bg-[#90ee9a]/8 px-5 py-3.5 text-sm font-semibold text-[#9fe0a8] transition hover:border-[#90ee9a]/50 hover:bg-[#90ee9a]/14">
+              <RefreshCw size={21} strokeWidth={2} aria-hidden="true" />
+              Run another scan
+            </button>
           </div>
-          <button onClick={onReset} className="inline-flex w-fit items-center gap-3 rounded-full border border-[#90ee9a]/25 bg-[#90ee9a]/8 px-5 py-3.5 text-sm font-semibold text-[#9fe0a8] transition hover:border-[#90ee9a]/50 hover:bg-[#90ee9a]/14">
-            <RefreshCw size={21} strokeWidth={2} aria-hidden="true" />
-            Run another scan
-          </button>
-        </div>
 
-        <div className="relative overflow-hidden rounded-[2rem] bg-black p-5 shadow-[0_24px_70px_rgba(0,0,0,.30)] sm:p-7">
-          <div className="pointer-events-none absolute inset-0 opacity-20 [background-image:radial-gradient(circle_at_center,rgba(144,238,154,.14)_1px,transparent_1.5px)] [background-size:18px_18px] [mask-image:radial-gradient(circle_at_15%_28%,black,transparent_24%)]" />
-          <div className="relative grid gap-8 xl:grid-cols-[minmax(0,1fr)_27rem] xl:items-stretch">
-            <div className="grid gap-7">
-              <div className="grid gap-7 lg:grid-cols-[20rem_minmax(0,1fr)] lg:items-center">
-                  <div className="relative mx-auto grid size-64 place-items-center overflow-visible rounded-full bg-[radial-gradient(circle,rgba(139,156,140,.08),transparent_64%)] lg:mx-0">
-                    <div className="absolute inset-2 rounded-full border border-[#8B9C8C]/10" />
-                    <AmOverallScoreChart score={report.overallScore} data={overallSegments} className="absolute inset-5" />
-                  <div className="relative z-10 grid size-36 place-items-center rounded-full bg-[#020806] shadow-[inset_0_0_32px_rgba(0,0,0,.50)]">
+          <div className="relative grid gap-6 xl:grid-cols-[minmax(0,1fr)_22rem] xl:items-start">
+            <div className="grid gap-6">
+              <div className="grid gap-6 lg:grid-cols-[45fr_55fr] lg:items-start">
+                <div className="grid gap-5">
+              <div className="flex items-center gap-3">
+                <span className="rounded-full border border-[#90ee9a]/16 bg-[#90ee9a]/8 px-3 py-1 text-[0.65rem] font-bold uppercase tracking-[0.18em] text-[#90ee9a]">
+                  {scoreBand}
+                </span>
+                <span className="grid size-7 place-items-center rounded-full bg-[#90ee9a]/10 text-[#90ee9a]">
+                  <Sparkles size={13} strokeWidth={2} aria-hidden="true" />
+                </span>
+              </div>
+
+              <div className="grid justify-items-center">
+                <div className="relative grid size-64 place-items-center overflow-visible rounded-full bg-[radial-gradient(circle,rgba(139,156,140,.08),transparent_64%)] sm:size-72 lg:size-80">
+                  <div className="absolute inset-2 rounded-full border border-[#8B9C8C]/10" />
+                  <AmOverallScoreChart score={report.overallScore} data={overallSegments} className="absolute inset-5 sm:inset-6" />
+                  <div className="relative z-10 grid size-40 place-items-center rounded-full bg-[#020806] shadow-[inset_0_0_32px_rgba(0,0,0,.50)] sm:size-44">
                     <div className="text-center">
-                      <div className="text-5xl font-semibold text-white">{report.overallScore}</div>
-                      <div className="mt-3 text-sm font-semibold uppercase tracking-[0.24em] text-[#90ee9a]">Grade {report.grade}</div>
+                      <div className="text-6xl font-semibold leading-none text-white">{report.overallScore}</div>
+                      <div className="mt-4 text-sm font-semibold uppercase tracking-[0.2em] text-[#90ee9a]">Grade {report.grade}</div>
                     </div>
                   </div>
                 </div>
-                <div>
-                  <p className="inline-flex items-center gap-3 text-sm font-semibold uppercase tracking-[0.32em] text-[#90ee9a]">
-                    <span className="grid size-8 place-items-center rounded-full bg-[#90ee9a]/10">
-                      <Sparkles size={15} strokeWidth={2} aria-hidden="true" />
-                    </span>
-                    Overall Score
-                  </p>
-                  <h3 className="mt-6 text-4xl font-semibold leading-tight text-white sm:text-5xl">AI Website Readiness</h3>
-                  <p className="mt-5 max-w-2xl text-base leading-8 text-[#d9e1d8]/78">
-                    Calculated from live technical signals, structured data, content clarity, trust markers, crawler access and Lighthouse results.
-                  </p>
-                </div>
               </div>
 
-              <div className="grid gap-4 md:grid-cols-3">
-                {[
-                  ["globe", "Scanned URL", report.finalUrl],
-                  ["redirect", "Redirects", report.redirected ? "Detected" : "None detected"],
-                  ["beacon", "Lighthouse", report.performance.fallback ? "Estimated from response" : report.performance.error ? "Could not complete" : "Completed"],
-                ].map(([icon, label, value]) => (
-                  <div key={label} className="rounded-[1.4rem] border border-[#8B9C8C]/14 bg-[#07100e]/78 p-5">
-                    <span className="mb-5 block text-[#90ee9a]"><MetricIcon type={icon} /></span>
-                    <p className="text-xs uppercase tracking-[0.28em] text-[#d9e1d8]/50">{label}</p>
-                    <p className="mt-2 min-w-0 text-base font-semibold leading-snug text-white [overflow-wrap:anywhere]">{value}</p>
-                  </div>
-                ))}
-              </div>
-
-              <div className="flex flex-col gap-4 rounded-[1.35rem] border border-[#8B9C8C]/12 bg-[#07100e]/70 p-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-center gap-4">
-                  <span className="grid size-14 place-items-center rounded-2xl bg-[#90ee9a]/10 text-[#90ee9a]">
-                    <BadgeCheck size={30} strokeWidth={1.7} aria-hidden="true" />
+              <div className="rounded-2xl border border-[#8B9C8C]/12 bg-[#07100e]/78 p-4">
+                <div className="flex items-start gap-3">
+                  <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-[#90ee9a]/10 text-[#90ee9a]">
+                    <Star size={20} strokeWidth={1.8} aria-hidden="true" />
                   </span>
                   <div>
-                    <p className="font-semibold text-white">Data is collected in real-time and analyzed using 50+ AI signals</p>
-                    <p className="mt-1 text-sm text-[#d9e1d8]/58">Last scan: {scannedLabel}</p>
+                    <p className="text-sm leading-6 text-[#d9e1d8]">{scoreTone}</p>
+                    <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2">
+                      {keyStrengths.map(({ icon: Icon, label }) => (
+                        <span key={label} className="inline-flex items-center gap-2 text-xs font-semibold leading-5 text-[#d9e1d8]/78">
+                          <Icon size={15} strokeWidth={1.9} className="text-[#90ee9a]" aria-hidden="true" />
+                          {label}
+                        </span>
+                      ))}
+                    </div>
                   </div>
                 </div>
-                <span className="inline-flex w-fit items-center gap-2 rounded-full border border-[#8B9C8C]/14 bg-[#90ee9a]/8 px-4 py-2 text-sm font-semibold text-[#90ee9a]">
+              </div>
+
+            </div>
+
+            <div>
+              {/* <p className="mb-5 inline-flex items-center gap-3 text-sm font-semibold uppercase tracking-[0.32em] text-[#90ee9a]">
+                <span className="grid size-8 place-items-center rounded-full bg-[#90ee9a]/10">
+                  <Sparkles size={15} strokeWidth={2} aria-hidden="true" />
+                </span>
+                Live Website Preview
+              </p> */}
+              <div className="overflow-hidden rounded-[1.35rem] border border-[#8B9C8C]/18 bg-[#07100e]/78 shadow-[0_22px_70px_rgba(0,0,0,.32)]">
+                <div className="flex items-center justify-between gap-3 border-b border-[#8B9C8C]/12 bg-black/28 px-4 py-3 text-sm">
+                  <span className="flex min-w-0 items-center gap-2 text-[#d9e1d8]">
+                    <Lock size={14} strokeWidth={2} className="shrink-0 text-[#8B9C8C]" aria-hidden="true" />
+                    <span className="truncate">{scannedHost || "Scanned website"}</span>
+                  </span>
+                  {scannedUrl && (
+                    <a href={scannedUrl} target="_blank" rel="noreferrer" className="inline-flex shrink-0 items-center gap-2 font-semibold text-white transition hover:text-[#90ee9a]">
+                      Visit site
+                      <ExternalLink size={15} strokeWidth={1.9} aria-hidden="true" />
+                    </a>
+                  )}
+                </div>
+                <div className="relative aspect-[16/10] bg-[radial-gradient(circle_at_center,rgba(144,238,154,.12),transparent_58%),#020806]">
+                  {previewImage ? (
+                    // Scan screenshots are generated as data URLs by the API; native image avoids remote loader config.
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={previewImage}
+                      alt={`${scannedHost || "Scanned website"} first screen screenshot`}
+                      className="size-full object-cover"
+                    />
+                  ) : (
+                    <div className="grid size-full place-items-center p-8 text-center">
+                      <div>
+                        <Globe2 className="mx-auto text-[#90ee9a]" size={42} strokeWidth={1.7} aria-hidden="true" />
+                        <p className="mt-4 text-sm font-semibold text-white">Preview unavailable</p>
+                        <p className="mt-2 text-sm leading-6 text-[#d9e1d8]/62">
+                          The site blocked browser capture, but the technical scan still completed.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="grid gap-4 border-t border-[#8B9C8C]/12 p-4">
+                  <p className="text-sm leading-6 text-[#d9e1d8]/74">{dynamicSummary}</p>
+                  {primaryRecommendation && (
+                    <a
+                      href="#top-improvements"
+                      className="group flex items-center justify-between gap-4 rounded-2xl border border-[#90ee9a]/18 bg-[#90ee9a]/8 p-4 text-left transition hover:border-[#90ee9a]/42 hover:bg-[#90ee9a]/12"
+                    >
+                      <span className="flex items-center gap-4">
+                        <span className="grid size-11 shrink-0 place-items-center rounded-full bg-[#42e878]/18 text-[#68ef8b]">
+                          <Lightbulb size={22} strokeWidth={1.8} aria-hidden="true" />
+                        </span>
+                        <span>
+                          <span className="block text-xs font-bold uppercase tracking-[0.2em] text-[#90ee9a]">Top Recommendation</span>
+                          <span className="mt-1 block text-base font-semibold leading-snug text-white">{primaryRecommendation.title}</span>
+                        </span>
+                      </span>
+                      <ArrowRight size={20} strokeWidth={2} className="shrink-0 text-[#90ee9a] transition group-hover:translate-x-1" aria-hidden="true" />
+                    </a>
+                  )}
+                </div>
+              </div>
+            </div>
+
+              </div>
+
+            <div className="rounded-[1.35rem] ">
+              <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+                <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-center">
+                  <span className="grid size-[100px] shrink-0 place-items-center overflow-hidden rounded-3xl border border-[#90ee9a]/18 bg-[#90ee9a]/8 text-[#90ee9a] shadow-[inset_0_1px_0_rgba(255,255,255,.05)]">
+                    {faviconUrl ? (
+                      // Dynamic third-party favicons are not known at build time, so a native image is the right fit here.
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={faviconUrl}
+                        alt={`${scannedHost || "Scanned website"} favicon`}
+                        width="100"
+                        height="100"
+                        className="size-[100px] object-contain p-4"
+                        onError={() => setFailedFaviconUrl(faviconUrl)}
+                      />
+                    ) : (
+                      <Globe2 size={42} strokeWidth={1.7} aria-hidden="true" />
+                    )}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="font-semibold text-white">Scanned Website</p>
+                    <p className="mt-1 text-sm text-[#d9e1d8]/58">Data is collected in real-time and analyzed using 50+ AI signals</p>
+                    <div className="mt-3 flex flex-col gap-2 text-sm text-[#d9e1d8]/58 sm:flex-row sm:flex-wrap sm:items-center">
+                      <span className="inline-flex items-center gap-2"><CalendarDays size={15} aria-hidden="true" />{scannedDateLabel}</span>
+                      {scannedTimeLabel && <span className="inline-flex items-center gap-2"><Clock3 size={15} aria-hidden="true" />{scannedTimeLabel}</span>}
+                      <span className="inline-flex items-center gap-2 text-[#90ee9a]"><span className="size-2 rounded-full bg-[#90ee9a]" />Live</span>
+                    </div>
+                    {scannedUrl && (
+                      <div className="mt-3 flex min-w-0 flex-wrap items-center gap-2 text-sm">
+                        <a
+                          href={scannedUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex min-w-0 items-center gap-2 font-semibold text-[#9fe0a8] underline decoration-[#90ee9a]/35 underline-offset-4 transition hover:text-white hover:decoration-[#90ee9a]"
+                        >
+                          <Globe2 size={16} strokeWidth={1.9} aria-hidden="true" />
+                          <span className="truncate [overflow-wrap:anywhere]">{report.finalUrl}</span>
+                        </a>
+                        <button
+                          type="button"
+                          onClick={copyScannedUrl}
+                          className="rounded-full border border-[#90ee9a]/20 bg-[#90ee9a]/8 px-3 py-1 text-xs font-semibold text-[#9fe0a8] transition hover:border-[#90ee9a]/45 hover:bg-[#90ee9a]/14"
+                        >
+                          Copy URL
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <span className="hidden w-fit items-center gap-2 rounded-full border border-[#8B9C8C]/14 bg-[#90ee9a]/8 px-4 py-2 text-sm font-semibold text-[#90ee9a] lg:inline-flex">
                   <span className="size-2.5 rounded-full bg-[#90ee9a]" />
                   Live
                 </span>
               </div>
             </div>
-
-            <aside className="relative flex min-h-[34rem] overflow-hidden rounded-[2rem] border border-[#8B9C8C]/16 bg-[linear-gradient(145deg,rgba(18,34,28,.96),rgba(4,8,6,.92)_58%)] p-7 shadow-[inset_0_1px_0_rgba(255,255,255,.06)] sm:p-8">
+            </div>
+            <aside className="relative flex min-h-[31rem] overflow-hidden rounded-[1.5rem] border border-[#8B9C8C]/18 bg-[linear-gradient(145deg,rgba(13,31,25,.96),rgba(4,8,6,.92)_58%)] p-6 shadow-[inset_0_1px_0_rgba(255,255,255,.06)]">
               <div className="pointer-events-none absolute right-[-7rem] top-[-8rem] size-72 rounded-full bg-[#90ee9a]/10 blur-3xl" />
               <div className="relative flex w-full flex-col">
-              <div className="mb-8 flex items-start justify-between gap-5">
-                <div>
-                  <p className="text-sm font-semibold uppercase tracking-[0.32em] text-[#90ee9a]">Complete report</p>
-                  <h3 className="mt-6 text-3xl font-semibold leading-tight text-white sm:text-3xl">Send the full AI readiness report.</h3>
-                  <p className="mt-5 text-base leading-5 text-[#d9e1d8]/74">Get the detailed report by email and request a strategy call with us.</p>
+                <div className="flex items-start justify-between gap-5">
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold uppercase tracking-[0.32em] text-[#90ee9a]">Complete report</p>
+                    
+                  </div>
+                  
                 </div>
-                <span className="hidden size-16 shrink-0 place-items-center rounded-2xl border border-[#8B9C8C]/22 bg-[#90ee9a]/8 text-[#90ee9a] sm:grid">
-                  <Mail size={31} strokeWidth={1.65} aria-hidden="true" />
-                </span>
-              </div>
-              <div className="h-px bg-gradient-to-r from-transparent via-[#8B9C8C]/24 to-transparent" />
-              <div className="mt-8">
-                <EmailCapture report={report} compact bare buttonLabel="Send Report" />
-              </div>
-              <div className="mt-auto pt-7">
-                <div className="flex items-start gap-3 rounded-2xl border border-[#90ee9a]/14 bg-black/20 p-4 text-sm leading-6 text-[#d9e1d8]/72">
-                  <Lock className="mt-0.5 shrink-0 text-[#90ee9a]" size={18} strokeWidth={2} aria-hidden="true" />
-                  <p>Your scan data is only used to generate this report and send your requested follow-up.</p>
+                <h3 className="mt-8 text-3xl font-semibold leading-tight text-white">Send the full AI readiness report.</h3>
+                <p className="mt-8 border-t border-[#8B9C8C]/12 pt-7 text-base leading-7 text-[#d9e1d8]/72">
+                  Get the complete report by email with detailed analysis, platform scores and actionable recommendations.
+                </p>
+                <div className="mt-8">
+                  <EmailCapture report={report} compact bare buttonLabel="Send Report" showCallOption={false} />
                 </div>
-              </div>
+                <div className="mt-auto flex items-start gap-3 pt-7 text-sm leading-6 text-[#d9e1d8]/72">
+                  <Lock className="mt-0.5 shrink-0 text-[#d9e1d8]/62" size={18} strokeWidth={2} aria-hidden="true" />
+                  <p>We respect your privacy. Your data is secure and will never be shared.</p>
+                </div>
               </div>
             </aside>
           </div>
@@ -766,6 +947,9 @@ function TechnicalAuditSection({ report }) {
   const checks = Object.entries(report.checklist || {});
   const passed = checks.filter(([, value]) => value).length;
   const attention = checks.length - passed;
+  const eeatSignals = report.eeat.signals || {};
+  const serviceNames = (report.entities.services || []).slice(0, 2);
+  const productNames = (report.entities.products || []).slice(0, 2);
   const auditCards = [
     {
       icon: Database,
@@ -803,7 +987,11 @@ function TechnicalAuditSection({ report }) {
       icon: ShieldCheck,
       title: "EEAT",
       score: report.eeat.score,
-      lines: Object.entries(report.eeat.checks).filter(([, value]) => value).slice(0, 4).map(([key]) => formatScoreLabel(key)),
+      lines: [
+        `Visible trust signals: ${eeatSignals.visibleCount ?? "N/A"}`,
+        `Schema trust signals: ${eeatSignals.schemaCount ?? "N/A"}`,
+        ...Object.entries(report.eeat.checks).filter(([, value]) => value).slice(0, 2).map(([key]) => formatScoreLabel(key)),
+      ],
     },
     {
       icon: UserRound,
@@ -812,7 +1000,8 @@ function TechnicalAuditSection({ report }) {
       lines: [
         `Company: ${report.entities.companyName || "Not detected"}`,
         `Email: ${report.entities.emails[0] || "Not detected"}`,
-        `Services: ${report.entities.services.length}`,
+        `Services: ${serviceNames.length ? serviceNames.join(", ") : "Not detected"}`,
+        `Products: ${productNames.length ? productNames.join(", ") : "Not detected"}`,
       ],
     },
     {
@@ -947,7 +1136,7 @@ function compactReportForEmail(report) {
   return JSON.parse(JSON.stringify(report));
 }
 
-function EmailCapture({ report, compact = false, title = "Want a detailed AI Readiness Report?", description, buttonLabel, bare = false }) {
+function EmailCapture({ report, compact = false, title = "Want a detailed AI Readiness Report?", description, buttonLabel, bare = false, showCallOption = true }) {
   const [reportUrl, setReportUrl] = useState("");
   const { register, handleSubmit, formState: { errors, isSubmitting }, reset } = useForm();
 
@@ -998,10 +1187,12 @@ function EmailCapture({ report, compact = false, title = "Want a detailed AI Rea
             {isSubmitting ? "Sending..." : buttonLabel || (compact ? "Unlock Report" : "Send My Report")}
           </button>
         </div>
-        <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-[#8B9C8C]/15 bg-white/[0.03] p-3 text-sm text-[#c7d0c6]">
-          <input type="checkbox" {...register("wantsCall")} className="mt-1 size-4 accent-[#8B9C8C]" />
-          <span>Schedule a call with us to review the AI readiness fixes.</span>
-        </label>
+        {showCallOption && (
+          <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-[#8B9C8C]/15 bg-white/[0.03] p-3 text-sm text-[#c7d0c6]">
+            <input type="checkbox" {...register("wantsCall")} className="mt-1 size-4 accent-[#8B9C8C]" />
+            <span>Schedule a call with us to review the AI readiness fixes.</span>
+          </label>
+        )}
         {reportUrl && (
           <a className="rounded-2xl border border-[#8B9C8C]/20 bg-[#8B9C8C]/10 p-3 text-sm font-semibold text-[#d9e1d8]" href={reportUrl} target="_blank" rel="noreferrer">
             Open hosted report
@@ -1081,6 +1272,10 @@ export default function Home() {
            Analyze how <span className="text-white">ChatGPT</span>, <span className="text-white">Claude</span>,{" "}
             <span className="text-white">Gemini</span> &amp; <span className="text-white">Perplexity</span> understand,
             cite and recommend your website.
+          </p>
+          <p className="mx-auto mt-4 max-w-3xl text-sm leading-6 text-[#d9e1d8]/68 sm:text-base sm:leading-7">
+            ScanSiteAI is an AI website readiness checker and audit platform for schema, crawler access, entity clarity,
+            content structure and answer-engine visibility.
           </p>
         </motion.div>
 

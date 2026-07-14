@@ -105,37 +105,14 @@ export function AmOverallScoreChart({ score, data, className = "size-56" }) {
         valueField: "value",
         categoryField: "category",
         alignLabels: false,
-        tooltip: am5.Tooltip.new(root, {
-          getFillFromSprite: false,
-          labelText: "{tooltip}",
-          pointerOrientation: "vertical",
-        }),
       }));
-      series.get("tooltip").setAll({
-        dy: -72,
-        centerX: am5.p50,
-        centerY: am5.p100,
-      });
-      series.get("tooltip").get("background").setAll({
-        fill: am5.color(0x020806),
-        fillOpacity: 0.96,
-        stroke: am5.color(0x90ee9a),
-        strokeOpacity: 0.3,
-        cornerRadius: 14,
-      });
-      series.get("tooltip").label.setAll({
-        fill: am5.color(0xffffff),
-        fontSize: 13,
-        fontWeight: "600",
-        textAlign: "center",
-      });
 
       series.labels.template.set("forceHidden", true);
       series.ticks.template.set("forceHidden", true);
       series.slices.template.setAll({
         stroke: am5.color(0x020302),
         strokeWidth: 2,
-        tooltipText: "{tooltip}",
+        tooltipText: "",
         cursorOverStyle: "pointer",
       });
       series.slices.template.states.create("hover", {
@@ -156,13 +133,11 @@ export function AmOverallScoreChart({ score, data, className = "size-56" }) {
         ...data.map((item, index) => ({
           ...item,
           index,
-          tooltip: `${item.category}\n${Math.round(item.score || 0)}% AI readiness\n${Math.round(item.value)}% contribution`,
         })),
         {
           category: "Opportunity",
           value: Math.max(0, 100 - (Number(score) || 0)),
           index: data.length,
-          tooltip: `Opportunity\n${Math.max(0, 100 - (Number(score) || 0))}% remaining`,
         },
       ].filter((item) => item.value > 0);
 

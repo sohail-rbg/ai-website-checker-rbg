@@ -2,7 +2,7 @@ import axios from "axios";
 import * as cheerio from "cheerio";
 import robotsParser from "robots-parser";
 import { parseStringPromise } from "xml2js";
-import { SCORE_WEIGHTS, clampScore, gradeFor, statusFor, weightedPoints } from "./scoring";
+import { SCORE_WEIGHTS, clampScore, gradeFor, statusFor, weightedAverageScore } from "./scoring";
 import { assertPublicUrl } from "./security";
 
 const BOT_AGENTS = ["GPTBot", "ClaudeBot", "Googlebot", "Google-Extended", "PerplexityBot", "CCBot", "Amazonbot", "Applebot"];
@@ -153,6 +153,40 @@ function collectSchemaTypes(value, found = []) {
   }
   Object.values(value).forEach((child) => collectSchemaTypes(child, found));
   return found;
+}
+
+function collectSchemaNodes(value, found = []) {
+  if (!value || typeof value !== "object") return found;
+  if (Array.isArray(value)) {
+    value.forEach((item) => collectSchemaNodes(item, found));
+    return found;
+  }
+  if (value["@type"]) found.push(value);
+  Object.values(value).forEach((child) => collectSchemaNodes(child, found));
+  return found;
+}
+
+function schemaTypesFor(node) {
+  if (!node?.["@type"]) return [];
+  return Array.isArray(node["@type"]) ? node["@type"] : [node["@type"]];
+}
+
+function schemaTextValue(value) {
+  if (!value) return "";
+  if (typeof value === "string") return value.trim();
+  if (Array.isArray(value)) return value.map(schemaTextValue).find(Boolean) || "";
+  if (typeof value === "object") return schemaTextValue(value.name) || schemaTextValue(value.email) || schemaTextValue(value.url);
+  return "";
+}
+
+function collectJsonLdNodes($) {
+  const blocks = [];
+  $('script[type="application/ld+json"]').each((_, node) => {
+    try {
+      blocks.push(JSON.parse($(node).contents().text()));
+    } catch {}
+  });
+  return collectSchemaNodes(blocks);
 }
 
 function analyzeSchema($) {
@@ -310,42 +344,75 @@ function analyzeContent($) {
 
 function analyzeEEAT($, url, text) {
   const linksText = $("a").map((_, el) => `${$(el).text()} ${$(el).attr("href") || ""}`.toLowerCase()).get().join(" ");
-  const pageText = `${linksText} ${text}`.toLowerCase();
+  const schemaNodes = collectJsonLdNodes($);
+  const schemaText = JSON.stringify(schemaNodes);
+  const visibleText = `${linksText} ${text}`;
+  const pageText = `${visibleText} ${schemaText}`.toLowerCase();
+  const hasAuthorSchema = schemaNodes.some((node) => schemaTypesFor(node).some((type) => ["Person", "Organization", "LocalBusiness"].includes(type)) && schemaTextValue(node.name));
+  const visibleSignals = {
+    aboutPage: /about/i.test(visibleText),
+    contactPage: /contact/i.test(visibleText),
+    privacy: /privacy/i.test(visibleText),
+    terms: /terms|conditions/i.test(visibleText),
+    author: /author|reviewed by|by\s+[a-z]/i.test(text) || $('[rel="author"], [class*="author" i]').length > 0,
+    editorialPolicy: /editorial policy|review policy|fact[- ]checked/i.test(text),
+    email: /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i.test(visibleText),
+  };
+  const schemaSignals = {
+    author: hasAuthorSchema,
+    email: /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i.test(schemaText),
+    organization: schemaNodes.some((node) => schemaTypesFor(node).some((type) => ["Organization", "LocalBusiness"].includes(type))),
+    contactPoint: /ContactPoint/i.test(schemaText),
+  };
   const checks = {
     aboutPage: /about/.test(pageText),
     contactPage: /contact/.test(pageText),
     privacy: /privacy/.test(pageText),
     terms: /terms|conditions/.test(pageText),
-    author: /author|by\s+[a-z]/i.test(text) || $('[rel="author"], [class*="author" i]').length > 0,
+    author: hasAuthorSchema || /author|reviewed by|by\s+[a-z]/i.test(text) || $('[rel="author"], [class*="author" i]').length > 0,
     editorialPolicy: /editorial policy|review policy|fact[- ]checked/i.test(text),
     address: /\d{1,6}\s+[A-Za-z0-9 .'-]+(?:street|st|road|rd|avenue|ave|suite|floor|blvd|lane|ln)/i.test(text),
     phone: /(?:\+?\d[\d\s().-]{7,}\d)/.test(text),
-    email: /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i.test(text),
+    email: /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i.test(`${text} ${schemaText}`),
     socialProfiles: /(linkedin|twitter|x\.com|facebook|instagram|youtube)\.com/i.test($.html()),
     https: new URL(url).protocol === "https:",
   };
   const score = clampScore((Object.values(checks).filter(Boolean).length / Object.keys(checks).length) * 100);
-  return { score, checks };
+  return {
+    score,
+    checks,
+    signals: {
+      visible: visibleSignals,
+      schema: schemaSignals,
+      visibleCount: Object.values(visibleSignals).filter(Boolean).length,
+      schemaCount: Object.values(schemaSignals).filter(Boolean).length,
+    },
+  };
 }
 
 function extractEntities($, metadata, text) {
   const html = $.html();
-  const orgSchema = [];
-  $('script[type="application/ld+json"]').each((_, node) => {
-    try {
-      orgSchema.push(JSON.parse($(node).contents().text()));
-    } catch {}
-  });
-  const schemaText = JSON.stringify(orgSchema);
+  const schemaNodes = collectJsonLdNodes($);
+  const schemaText = JSON.stringify(schemaNodes);
+  const organizationNode = schemaNodes.find((node) => schemaTypesFor(node).some((type) => ["Organization", "LocalBusiness"].includes(type)));
+  const serviceNodes = schemaNodes.filter((node) => schemaTypesFor(node).includes("Service"));
+  const productNodes = schemaNodes.filter((node) => schemaTypesFor(node).some((type) => ["Product", "SoftwareApplication", "WebApplication"].includes(type)));
+  const schemaCompanyName = schemaTextValue(organizationNode?.name);
   const companyName = metadata.title?.split(/[|-]/)[0]?.trim() || text.match(/(?:©|Copyright)\s+\d{4}\s+([^.\n]+)/i)?.[1]?.trim() || "";
-  const emails = unique(text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi) || []);
+  const schemaEmails = schemaNodes.map((node) => schemaTextValue(node.email));
+  const emails = unique([...(text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi) || []), ...schemaEmails]);
   const phones = unique(text.match(/(?:\+?\d[\d\s().-]{7,}\d)/g) || []).slice(0, 5);
-  const services = $("h1,h2,h3,a").map((_, el) => $(el).text().trim()).get().filter((value) => /service|solution|product|platform|consulting|software|agency/i.test(value)).slice(0, 10);
+  const schemaServices = serviceNodes.map((node) => schemaTextValue(node.name));
+  const visibleServices = $("h1,h2,h3,a").map((_, el) => $(el).text().trim()).get().filter((value) => /service|solution|product|platform|consulting|software|agency/i.test(value));
+  const services = unique([...schemaServices, ...visibleServices]).slice(0, 10);
   const locations = unique((text.match(/\b[A-Z][a-z]+,\s+[A-Z]{2}\b/g) || []).slice(0, 8));
   const founders = unique((text.match(/founder(?:s)?(?:\s+and\s+CEO)?\s*(?:is|:)?\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,2})/g) || []).slice(0, 5));
   const address = text.match(/\d{1,6}\s+[A-Za-z0-9 .'-]+(?:Street|St|Road|Rd|Avenue|Ave|Suite|Floor|Blvd|Lane|Ln)[^.\n]*/i)?.[0] || "";
-  const score = clampScore((companyName ? 20 : 0) + (emails.length ? 15 : 0) + (phones.length ? 15 : 0) + (address ? 15 : 0) + (services.length ? 20 : 0) + (/Organization|LocalBusiness|Product|Service/i.test(schemaText) ? 15 : 0));
-  return { score, companyName, brand: metadata.title || companyName, products: services.filter((s) => /product|platform|software/i.test(s)), services, founders, phones, emails, address, locations, htmlSignals: html.length };
+  const detectedCompanyName = schemaCompanyName || companyName;
+  const score = clampScore((detectedCompanyName ? 20 : 0) + (emails.length ? 15 : 0) + (phones.length ? 15 : 0) + (address ? 15 : 0) + (services.length ? 20 : 0) + (/Organization|LocalBusiness|Product|Service/i.test(schemaText) ? 15 : 0));
+  const schemaProducts = productNodes.map((node) => schemaTextValue(node.name));
+  const products = unique([...schemaProducts, ...services.filter((s) => /product|platform|software/i.test(s))]).slice(0, 10);
+  return { score, companyName: detectedCompanyName, brand: metadata.title || detectedCompanyName, products, services, founders, phones, emails, address, locations, htmlSignals: html.length };
 }
 
 async function analyzeRobots(baseUrl) {
@@ -449,6 +516,48 @@ async function runLighthouse(url, initialResponse) {
     };
   } catch (error) {
     return { score: 0, performance: 0, accessibility: 0, seo: 0, bestPractices: 0, error: error.message };
+  } finally {
+    if (browser) await browser.close();
+  }
+}
+
+async function captureHomepagePreview(url) {
+  let browser;
+  try {
+    await assertPublicUrl(url);
+    const { default: puppeteer } = await import("puppeteer");
+    browser = await puppeteer.launch({ headless: true, args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"] });
+    const page = await browser.newPage();
+    await page.setViewport({ width: 1280, height: 820, deviceScaleFactor: 1 });
+    await page.setUserAgent(BROWSER_USER_AGENT);
+    await Promise.race([
+      page.goto(url, { waitUntil: "networkidle2", timeout: 9000 }),
+      timeoutAfter(10000, "Screenshot timed out."),
+    ]);
+    const image = await page.screenshot({
+      type: "jpeg",
+      quality: 72,
+      fullPage: false,
+      encoding: "base64",
+    });
+    const title = await page.title().catch(() => "");
+    return {
+      image: `data:image/jpeg;base64,${image}`,
+      title,
+      width: 1280,
+      height: 820,
+      capturedAt: new Date().toISOString(),
+      error: null,
+    };
+  } catch (error) {
+    return {
+      image: null,
+      title: "",
+      width: 1280,
+      height: 820,
+      capturedAt: null,
+      error: error.message,
+    };
   } finally {
     if (browser) await browser.close();
   }
@@ -612,8 +721,7 @@ function scoreAll(parts) {
     images: parts.images.score,
     readability: parts.content.readability,
   };
-  const total = Object.entries(SCORE_WEIGHTS).reduce((sum, [key, weight]) => sum + weightedPoints(scores[key], weight), 0);
-  return { scores, overall: clampScore(total) };
+  return { scores, overall: weightedAverageScore(scores) };
 }
 
 export async function scanWebsite(inputUrl) {
@@ -652,7 +760,12 @@ export async function scanWebsite(inputUrl) {
   const content = analyzeContent($);
   const eeat = analyzeEEAT($, finalUrl, content.text);
   const entities = extractEntities($, metadata, content.text);
-  const [robots, sitemap, performance] = await Promise.all([analyzeRobots(finalUrl), analyzeSitemap(finalUrl), runLighthouse(finalUrl, response)]);
+  const [robots, sitemap, performance, preview] = await Promise.all([
+    analyzeRobots(finalUrl),
+    analyzeSitemap(finalUrl),
+    runLighthouse(finalUrl, response),
+    captureHomepagePreview(finalUrl),
+  ]);
   const scored = scoreAll({ metadata, schema, performance, content, eeat, entities, robots, sitemap, links, images });
   const recommendations = buildRecommendations({ metadata, schema, headings, images, links, content, eeat, robots, sitemap, performance, entities });
   const platformScores = calculatePlatformScores(scored.scores, schema, content, eeat, entities, robots);
@@ -691,6 +804,7 @@ export async function scanWebsite(inputUrl) {
     robots,
     sitemap,
     performance,
+    preview,
     checklist,
     recommendations,
     quickWins: recommendations.filter((item) => item.difficulty === "Easy" && /under 30/i.test(item.estimatedTime)).slice(0, 6),

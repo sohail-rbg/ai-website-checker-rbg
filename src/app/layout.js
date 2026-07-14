@@ -3,7 +3,10 @@ import Script from "next/script";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { contactEmail, defaultDescription, defaultKeywords, siteName, siteUrl } from "./seo";
+import siteSchema from "../lib/siteSchema.cjs";
 import "./globals.css";
+
+const { buildSiteJsonLd } = siteSchema;
 
 const spaceGrotesk = Space_Grotesk({
   variable: "--font-space-grotesk",
@@ -76,133 +79,7 @@ export const metadata = {
 };
 
 export default function RootLayout({ children }) {
-  const jsonLd = {
-    "@context": "https://schema.org",
-    "@graph": [
-      {
-        "@type": ["Organization", "LocalBusiness"],
-        "@id": `${siteUrl}/#organization`,
-        name: siteName,
-        url: siteUrl,
-        logo: `${siteUrl}/logo.png`,
-        email: contactEmail,
-        sameAs: [siteUrl],
-        contactPoint: [
-          {
-            "@type": "ContactPoint",
-            contactType: "AI readiness audit consultation",
-            email: contactEmail,
-            availableLanguage: ["English"],
-          },
-        ],
-      },
-      {
-        "@type": "WebApplication",
-        "@id": `${siteUrl}/#webapp`,
-        name: siteName,
-        applicationCategory: "BusinessApplication",
-        operatingSystem: "Web",
-        url: siteUrl,
-        description: defaultDescription,
-        offers: {
-          "@type": "Offer",
-          price: "0",
-          priceCurrency: "USD",
-        },
-        provider: {
-          "@id": `${siteUrl}/#organization`,
-        },
-      },
-      {
-        "@type": "SoftwareApplication",
-        "@id": `${siteUrl}/#software`,
-        name: siteName,
-        applicationCategory: "SEOApplication",
-        operatingSystem: "Web",
-        description: defaultDescription,
-        provider: {
-          "@id": `${siteUrl}/#organization`,
-        },
-      },
-      {
-        "@type": "Service",
-        "@id": `${siteUrl}/#service`,
-        name: "AI Website Readiness Audit",
-        serviceType: "AI search and LLM visibility audit",
-        url: siteUrl,
-        description: "A technical audit for AI crawler access, structured data, entity recognition, content clarity, EEAT signals and performance.",
-        provider: {
-          "@id": `${siteUrl}/#organization`,
-        },
-      },
-      {
-        "@type": "Product",
-        "@id": `${siteUrl}/#product`,
-        name: siteName,
-        description: defaultDescription,
-        brand: {
-          "@id": `${siteUrl}/#organization`,
-        },
-      },
-      {
-        "@type": "Person",
-        "@id": `${siteUrl}/#founder`,
-        name: "Md Sohail",
-        email: contactEmail,
-        jobTitle: "SaaS Architect and AI Readiness Consultant",
-        worksFor: {
-          "@id": `${siteUrl}/#organization`,
-        },
-      },
-      {
-        "@type": "Article",
-        "@id": `${siteUrl}/#article`,
-        headline: "How ScanSiteAI evaluates LLM visibility",
-        author: {
-          "@id": `${siteUrl}/#founder`,
-        },
-        publisher: {
-          "@id": `${siteUrl}/#organization`,
-        },
-        mainEntityOfPage: siteUrl,
-        description: defaultDescription,
-      },
-      {
-        "@type": "FAQPage",
-        "@id": `${siteUrl}/#faq`,
-        mainEntity: [
-          {
-            "@type": "Question",
-            name: "What does ScanSiteAI analyze?",
-            acceptedAnswer: {
-              "@type": "Answer",
-              text: "It analyzes crawler access, metadata, structured data, headings, images, links, content clarity, EEAT signals, entity extraction, sitemap coverage and performance signals.",
-            },
-          },
-          {
-            "@type": "Question",
-            name: "Is this traditional SEO scoring?",
-            acceptedAnswer: {
-              "@type": "Answer",
-              text: "No. The score is focused on whether AI systems and answer engines can crawl, understand, reference and recommend a website.",
-            },
-          },
-        ],
-      },
-      {
-        "@type": "BreadcrumbList",
-        "@id": `${siteUrl}/#breadcrumb`,
-        itemListElement: [
-          {
-            "@type": "ListItem",
-            position: 1,
-            name: "Home",
-            item: siteUrl,
-          },
-        ],
-      },
-    ],
-  };
+  const jsonLd = buildSiteJsonLd({ siteUrl, siteName, contactEmail, defaultDescription });
 
   return (
     <html

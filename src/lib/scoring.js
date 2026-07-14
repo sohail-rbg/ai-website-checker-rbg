@@ -13,11 +13,24 @@ export const SCORE_WEIGHTS = {
 };
 
 export function clampScore(value) {
-  return Math.max(0, Math.min(100, Math.round(value)));
+  const number = Number(value);
+  if (!Number.isFinite(number)) return 0;
+  return Math.max(0, Math.min(100, Math.round(number)));
 }
 
 export function weightedPoints(percent, weight) {
   return (clampScore(percent) / 100) * weight;
+}
+
+export function weightedAverageScore(scores, weights = SCORE_WEIGHTS) {
+  const totalWeight = Object.values(weights).reduce((sum, weight) => sum + weight, 0);
+  if (!totalWeight) return 0;
+
+  const points = Object.entries(weights).reduce((sum, [key, weight]) => {
+    return sum + weightedPoints(scores[key], weight);
+  }, 0);
+
+  return clampScore((points / totalWeight) * 100);
 }
 
 export function gradeFor(score) {

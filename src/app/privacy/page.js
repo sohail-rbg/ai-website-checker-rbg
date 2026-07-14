@@ -13,11 +13,11 @@ export default function PrivacyPage() {
     <PublicInfoPage
       eyebrow="Privacy"
       title="Privacy policy."
-      description="ScanSiteAI stores lead details only when a user requests a report by email."
+      description="ScanSiteAI stores website scan records and lead details needed to generate reports and follow up when requested."
       sections={[
         {
           heading: "Data collected",
-          copy: "When you request a report, the application stores your email address, scanned website, overall score, summary and report data so the requested report can be delivered.",
+          copy: "When a scan is run, the application stores the scanned website, score, recommendations and report data in a private admin view. When you request a report, it also stores your email address and delivery details so the requested report can be sent.",
         },
         {
           heading: "How data is used",
