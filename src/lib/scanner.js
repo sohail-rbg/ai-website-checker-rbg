@@ -523,17 +523,29 @@ async function runLighthouse(url, initialResponse) {
 
 async function captureHomepagePreview(url) {
   let browser;
+  const fallbackImage = `https://s.wordpress.com/mshots/v1/${encodeURIComponent(url)}?w=1280`;
+
   try {
     await assertPublicUrl(url);
     const { default: puppeteer } = await import("puppeteer");
-    browser = await puppeteer.launch({ headless: true, args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"] });
+    browser = await puppeteer.launch({
+      headless: true,
+      args: [
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-dev-shm-usage",
+        "--disable-gpu",
+        "--disable-web-security",
+        "--hide-scrollbars",
+      ],
+    });
     const page = await browser.newPage();
     await page.setViewport({ width: 1280, height: 820, deviceScaleFactor: 1 });
     await page.setUserAgent(BROWSER_USER_AGENT);
-    await Promise.race([
-      page.goto(url, { waitUntil: "networkidle2", timeout: 9000 }),
-      timeoutAfter(10000, "Screenshot timed out."),
-    ]);
+    await page.setExtraHTTPHeaders(BROWSER_HEADERS);
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 12000 });
+    await page.waitForNetworkIdle({ idleTime: 700, timeout: 3500 }).catch(() => {});
+    await new Promise((resolve) => setTimeout(resolve, 700));
     const image = await page.screenshot({
       type: "jpeg",
       quality: 72,
@@ -548,15 +560,17 @@ async function captureHomepagePreview(url) {
       height: 820,
       capturedAt: new Date().toISOString(),
       error: null,
+      fallback: false,
     };
   } catch (error) {
     return {
-      image: null,
+      image: fallbackImage,
       title: "",
       width: 1280,
       height: 820,
       capturedAt: null,
       error: error.message,
+      fallback: true,
     };
   } finally {
     if (browser) await browser.close();

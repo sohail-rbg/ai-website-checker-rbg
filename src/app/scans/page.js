@@ -38,6 +38,18 @@ function scoreTone(score) {
   return "text-[#ff8fa3]";
 }
 
+function formatLocation(location) {
+  return [location?.city, location?.region, location?.country].filter(Boolean).join(", ") || "Not available";
+}
+
+function formatBrowser(browser, userAgent) {
+  if (browser?.name && browser.name !== "Unknown") {
+    return [browser.name, browser.version].filter(Boolean).join(" ");
+  }
+  if (!userAgent) return "Not available";
+  return "Unknown browser";
+}
+
 export default async function ScansPage({ searchParams }) {
   const params = await searchParams;
   const token = params?.token;
@@ -61,7 +73,7 @@ export default async function ScansPage({ searchParams }) {
     scans = await Scan.find({})
       .sort({ scannedAt: -1 })
       .limit(100)
-      .select("requestedUrl finalUrl overallScore grade topRecommendations userAgent scannedAt createdAt report.scoreBreakdown report.performance report.schema report.entities report.recommendations")
+      .select("requestedUrl finalUrl email entityEmail overallScore grade topRecommendations userAgent browser location scannedAt createdAt report.scoreBreakdown report.performance report.schema report.entities report.recommendations")
       .lean();
   } catch (error) {
     dbError = error.message || "Could not load scan records.";
@@ -115,10 +127,13 @@ export default async function ScansPage({ searchParams }) {
             </div>
 
             <div className="overflow-x-auto border-t border-[#8B9C8C]/15">
-              <table className="w-full min-w-[1180px] border-collapse text-left text-sm">
+              <table className="w-full min-w-[1420px] border-collapse text-left text-sm">
                 <thead className="text-[#8B9C8C]">
                   <tr>
                     <th className="py-4 pr-5 font-semibold">Website</th>
+                    <th className="px-5 py-4 font-semibold">Email</th>
+                    <th className="px-5 py-4 font-semibold">Location</th>
+                    <th className="px-5 py-4 font-semibold">Browser</th>
                     <th className="px-5 py-4 font-semibold">Date</th>
                     <th className="px-5 py-4 font-semibold">Time</th>
                     <th className="px-5 py-4 font-semibold">Score</th>
@@ -133,6 +148,9 @@ export default async function ScansPage({ searchParams }) {
                     const topRecommendation = scan.topRecommendations?.[0] || scan.report?.recommendations?.[0]?.title || "No priority fix";
                     const company = scan.report?.entities?.companyName || "Not detected";
                     const performance = scan.report?.performance?.performance ?? scan.report?.scoreBreakdown?.performance;
+                    const location = formatLocation(scan.location);
+                    const browser = formatBrowser(scan.browser, scan.userAgent);
+                    const displayEmail = scan.email || scan.entityEmail || scan.report?.entities?.emails?.[0] || "";
 
                     return (
                       <tr key={String(scan._id)} className="border-t border-[#8B9C8C]/12 align-top text-[#d9e1d8]">
@@ -143,6 +161,22 @@ export default async function ScansPage({ searchParams }) {
                           {scan.requestedUrl !== scan.finalUrl && (
                             <p className="mt-2 line-clamp-1 break-all text-xs text-[#d9e1d8]/45">Requested: {scan.requestedUrl}</p>
                           )}
+                        </td>
+                        <td className="max-w-[220px] px-5 py-5">
+                          {displayEmail ? (
+                            <a href={`mailto:${displayEmail}`} className="font-semibold text-[#9fe0a8] underline decoration-[#8B9C8C]/35 underline-offset-4">
+                              <span className="line-clamp-1 break-all">{displayEmail}</span>
+                            </a>
+                          ) : (
+                            <span className="text-[#d9e1d8]/45">Not detected</span>
+                          )}
+                          {!scan.email && displayEmail && <p className="mt-1 text-xs text-[#d9e1d8]/45">Entity email</p>}
+                        </td>
+                        <td className="max-w-[220px] px-5 py-5">
+                          <span className="line-clamp-2">{location}</span>
+                        </td>
+                        <td className="max-w-[190px] px-5 py-5">
+                          <span className="line-clamp-2">{browser}</span>
                         </td>
                         <td className="px-5 py-5">{scanned.date}</td>
                         <td className="px-5 py-5">{scanned.time}</td>

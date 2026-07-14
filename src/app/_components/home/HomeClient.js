@@ -413,6 +413,7 @@ function HeroCtaBand() {
 
 export function Dashboard({ report, onReset }) {
   const [failedFaviconUrl, setFailedFaviconUrl] = useState("");
+  const [failedPreviewUrl, setFailedPreviewUrl] = useState("");
   const breakdown = useMemo(
     () => Object.entries(report.scoreBreakdown).map(([name, value]) => ({ name: formatScoreLabel(name), value })),
     [report]
@@ -462,7 +463,8 @@ export function Dashboard({ report, onReset }) {
       label: report.eeat?.score >= 70 ? "Trust & authority" : "Technical crawl foundation",
     },
   ];
-  const previewImage = report.preview?.image || "";
+  const candidatePreviewImage = report.preview?.image || "";
+  const previewImage = candidatePreviewImage === failedPreviewUrl ? "" : candidatePreviewImage;
   const dynamicSummary = readinessSummary(report, primaryRecommendation);
 
   async function copyScannedUrl() {
@@ -569,6 +571,15 @@ export function Dashboard({ report, onReset }) {
                       src={previewImage}
                       alt={`${scannedHost || "Scanned website"} first screen screenshot`}
                       className="size-full object-cover"
+                      onError={() => setFailedPreviewUrl(previewImage)}
+                    />
+                  ) : scannedUrl ? (
+                    <iframe
+                      src={scannedUrl}
+                      title={`${scannedHost || "Scanned website"} live preview`}
+                      loading="lazy"
+                      sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
+                      className="size-full border-0 bg-white"
                     />
                   ) : (
                     <div className="grid size-full place-items-center p-8 text-center">
@@ -1158,6 +1169,7 @@ function EmailCapture({ report, compact = false, title = "Want a detailed AI Rea
       });
       const data = await readApiResponse(response, "Could not send report. Please try again.");
       if (!response.ok) throw new Error(data.error || "Could not send report.");
+      localStorage.setItem("scanSiteAIEmail", values.email);
       if (data.reportUrl) setReportUrl(data.reportUrl);
       if (data.emailSent === false) {
         toast.error(data.message || "Lead saved, but email delivery needs SMTP configuration.");
@@ -1208,6 +1220,48 @@ function EmailCapture({ report, compact = false, title = "Want a detailed AI Rea
 }
 const aiEngines = ["ChatGPT", "Claude", "Gemini", "Perplexity", "Copilot", "Grok", "DeepSeek", "Mistral"];
 
+function findStoredEmail() {
+  const emailPattern = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i;
+
+  try {
+    for (const storage of [localStorage, sessionStorage]) {
+      for (let index = 0; index < storage.length; index += 1) {
+        const key = storage.key(index);
+        const value = key ? storage.getItem(key) : "";
+        const match = String(value || "").match(emailPattern);
+        if (match) return match[0].toLowerCase();
+      }
+    }
+  } catch (error) {
+    console.error("Stored email lookup failed", error);
+  }
+
+  return "";
+}
+
+async function getApproxLocationForScan() {
+  try {
+    const response = await fetch("https://ipapi.co/json/");
+    if (!response.ok) return null;
+    const data = await response.json();
+
+    return {
+      ip: data.ip || "",
+      city: data.city || "",
+      region: data.region || "",
+      country: data.country_name || data.country || "",
+      postal: data.postal || "",
+      latitude: data.latitude ?? null,
+      longitude: data.longitude ?? null,
+      timezone: data.timezone || "",
+      isp: data.org || "",
+    };
+  } catch (error) {
+    console.error("Approx location lookup failed", error);
+    return null;
+  }
+}
+
 export default function Home() {
   const [isScanning, setIsScanning] = useState(false);
   const [step, setStep] = useState(0);
@@ -1223,10 +1277,14 @@ export default function Home() {
     setStep(0);
     const timer = setInterval(() => setStep((current) => Math.min(current + 1, scanSteps.length - 1)), 1400);
     try {
+      const [storedEmail, approxLocation] = await Promise.all([
+        Promise.resolve(findStoredEmail()),
+        getApproxLocationForScan(),
+      ]);
       const response = await fetch("/api/scan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: values.url }),
+        body: JSON.stringify({ url: values.url, email: storedEmail, location: approxLocation }),
       });
       const data = await readApiResponse(response, "The live server returned an invalid scan response. Please try again.");
       if (!response.ok) throw new Error(data.error || "Scan failed.");

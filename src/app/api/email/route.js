@@ -1,6 +1,8 @@
 import nodemailer from "nodemailer";
+import mongoose from "mongoose";
 import { connectToDatabase } from "@/lib/db";
 import Lead from "@/models/Lead";
+import Scan from "@/models/Scan";
 import Submission from "@/models/Submission";
 import { checkRateLimit, clientKey } from "@/lib/rateLimit";
 
@@ -480,6 +482,18 @@ export async function POST(request) {
           },
         }
       );
+      if (fullReport.scanId && mongoose.Types.ObjectId.isValid(fullReport.scanId)) {
+        await Scan.updateOne(
+          { _id: fullReport.scanId },
+          {
+            $set: {
+              email,
+              lead: lead._id,
+              submission: submission._id,
+            },
+          }
+        );
+      }
     } catch (error) {
       console.error("Lead email delivery status update failed", error);
       delivery.error = [delivery.error, "Lead saved, but delivery status could not be updated."].filter(Boolean).join(" | ");

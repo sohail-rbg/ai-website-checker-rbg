@@ -17,7 +17,7 @@ export default function PrivacyPage() {
       sections={[
         {
           heading: "Data collected",
-          copy: "When a scan is run, the application stores the scanned website, score, recommendations and report data in a private admin view. When you request a report, it also stores your email address and delivery details so the requested report can be sent.",
+          copy: "When a scan is run, the application stores the scanned website, score, recommendations, report data, browser type and approximate IP-based location when available. When you request a report, it also stores your email address and delivery details so the requested report can be sent.",
         },
         {
           heading: "How data is used",
