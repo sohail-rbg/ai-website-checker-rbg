@@ -2,6 +2,7 @@ import Link from "next/link";
 import { connectToDatabase } from "@/lib/db";
 import Scan from "@/models/Scan";
 import { createPageMetadata } from "../seo";
+import ScansDataTable from "./ScansDataTable";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -31,15 +32,12 @@ function formatDateTime(value) {
   };
 }
 
-function scoreTone(score) {
-  const value = Number(score) || 0;
-  if (value >= 90) return "text-[#90ee9a]";
-  if (value >= 75) return "text-[#f5d66e]";
-  return "text-[#ff8fa3]";
+function formatLocation(location) {
+  return [location?.city, location?.region].filter(Boolean).join(", ") || "Not available";
 }
 
-function formatLocation(location) {
-  return [location?.city, location?.region, location?.country].filter(Boolean).join(", ") || "Not available";
+function formatCountry(location) {
+  return location?.country || "Not available";
 }
 
 function formatBrowser(browser, userAgent) {
@@ -84,6 +82,63 @@ export default async function ScansPage({ searchParams }) {
     : 0;
   const needsWork = scans.filter((scan) => Number(scan.overallScore) < 75).length;
   const excellent = scans.filter((scan) => Number(scan.overallScore) >= 90).length;
+  const scanRows = scans.map((scan) => {
+    const scanned = formatDateTime(scan.scannedAt || scan.createdAt);
+    const topRecommendation = scan.topRecommendations?.[0] || scan.report?.recommendations?.[0]?.title || "No priority fix";
+    const company = scan.report?.entities?.companyName || "Not detected";
+    const performance = scan.report?.performance?.performance ?? scan.report?.scoreBreakdown?.performance ?? "N/A";
+    const location = formatLocation(scan.location);
+    const country = formatCountry(scan.location);
+    const browser = formatBrowser(scan.browser, scan.userAgent);
+    const displayEmail = scan.email || scan.entityEmail || scan.report?.entities?.emails?.[0] || "";
+    const website = scan.finalUrl || scan.requestedUrl;
+    const score = Number.isFinite(Number(scan.overallScore)) ? Number(scan.overallScore) : null;
+    const dateValue = new Date(scan.scannedAt || scan.createdAt || 0).getTime();
+    const signals = {
+      schema: scan.report?.scoreBreakdown?.schema ?? "N/A",
+      content: scan.report?.scoreBreakdown?.content ?? "N/A",
+      eeat: scan.report?.scoreBreakdown?.eeat ?? "N/A",
+      entities: scan.report?.scoreBreakdown?.entities ?? "N/A",
+      performance,
+      schemaTypes: (scan.report?.schema?.present || []).join(", "),
+    };
+    const searchText = [
+      website,
+      scan.requestedUrl,
+      displayEmail,
+      location,
+      country,
+      browser,
+      scanned.date,
+      scanned.time,
+      score,
+      scan.grade,
+      topRecommendation,
+      company,
+      signals.schemaTypes,
+    ].filter(Boolean).join(" ").toLowerCase();
+
+    return {
+      id: String(scan._id),
+      website,
+      websiteHref: website,
+      requestedUrl: scan.requestedUrl || website,
+      email: displayEmail,
+      emailSource: !scan.email && displayEmail ? "entity" : "submitted",
+      location,
+      country,
+      browser,
+      date: scanned.date,
+      dateValue,
+      time: scanned.time,
+      score,
+      grade: scan.grade || "N/A",
+      topRecommendation,
+      company,
+      signals,
+      searchText,
+    };
+  });
 
   return (
     <main className="min-h-screen bg-[#020302] px-5 py-10 text-white sm:px-8">
@@ -126,92 +181,7 @@ export default async function ScansPage({ searchParams }) {
               ))}
             </div>
 
-            <div className="overflow-x-auto border-t border-[#8B9C8C]/15">
-              <table className="w-full min-w-[1420px] border-collapse text-left text-sm">
-                <thead className="text-[#8B9C8C]">
-                  <tr>
-                    <th className="py-4 pr-5 font-semibold">Website</th>
-                    <th className="px-5 py-4 font-semibold">Email</th>
-                    <th className="px-5 py-4 font-semibold">Location</th>
-                    <th className="px-5 py-4 font-semibold">Browser</th>
-                    <th className="px-5 py-4 font-semibold">Date</th>
-                    <th className="px-5 py-4 font-semibold">Time</th>
-                    <th className="px-5 py-4 font-semibold">Score</th>
-                    <th className="px-5 py-4 font-semibold">Top Recommendation</th>
-                    <th className="px-5 py-4 font-semibold">Detected Entity</th>
-                    <th className="py-4 pl-5 font-semibold">Details</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {scans.map((scan) => {
-                    const scanned = formatDateTime(scan.scannedAt || scan.createdAt);
-                    const topRecommendation = scan.topRecommendations?.[0] || scan.report?.recommendations?.[0]?.title || "No priority fix";
-                    const company = scan.report?.entities?.companyName || "Not detected";
-                    const performance = scan.report?.performance?.performance ?? scan.report?.scoreBreakdown?.performance;
-                    const location = formatLocation(scan.location);
-                    const browser = formatBrowser(scan.browser, scan.userAgent);
-                    const displayEmail = scan.email || scan.entityEmail || scan.report?.entities?.emails?.[0] || "";
-
-                    return (
-                      <tr key={String(scan._id)} className="border-t border-[#8B9C8C]/12 align-top text-[#d9e1d8]">
-                        <td className="max-w-[320px] py-5 pr-5">
-                          <a href={scan.finalUrl || scan.requestedUrl} target="_blank" rel="noreferrer" className="font-semibold text-white underline decoration-[#8B9C8C]/35 underline-offset-4 transition hover:text-[#9fe0a8]">
-                            <span className="line-clamp-2 break-all">{scan.finalUrl || scan.requestedUrl}</span>
-                          </a>
-                          {scan.requestedUrl !== scan.finalUrl && (
-                            <p className="mt-2 line-clamp-1 break-all text-xs text-[#d9e1d8]/45">Requested: {scan.requestedUrl}</p>
-                          )}
-                        </td>
-                        <td className="max-w-[220px] px-5 py-5">
-                          {displayEmail ? (
-                            <a href={`mailto:${displayEmail}`} className="font-semibold text-[#9fe0a8] underline decoration-[#8B9C8C]/35 underline-offset-4">
-                              <span className="line-clamp-1 break-all">{displayEmail}</span>
-                            </a>
-                          ) : (
-                            <span className="text-[#d9e1d8]/45">Not detected</span>
-                          )}
-                          {!scan.email && displayEmail && <p className="mt-1 text-xs text-[#d9e1d8]/45">Entity email</p>}
-                        </td>
-                        <td className="max-w-[220px] px-5 py-5">
-                          <span className="line-clamp-2">{location}</span>
-                        </td>
-                        <td className="max-w-[190px] px-5 py-5">
-                          <span className="line-clamp-2">{browser}</span>
-                        </td>
-                        <td className="px-5 py-5">{scanned.date}</td>
-                        <td className="px-5 py-5">{scanned.time}</td>
-                        <td className="px-5 py-5">
-                          <span className={`text-2xl font-semibold ${scoreTone(scan.overallScore)}`}>{scan.overallScore ?? "N/A"}</span>
-                          <span className="ml-2 text-xs text-[#8B9C8C]">Grade {scan.grade || "N/A"}</span>
-                        </td>
-                        <td className="max-w-[260px] px-5 py-5">
-                          <span className="line-clamp-2">{topRecommendation}</span>
-                        </td>
-                        <td className="max-w-[220px] px-5 py-5">
-                          <span className="line-clamp-2">{company}</span>
-                        </td>
-                        <td className="py-5 pl-5">
-                          <details className="max-w-[320px] rounded-2xl border border-[#8B9C8C]/15 bg-white/[0.03] p-3">
-                            <summary className="cursor-pointer font-semibold text-[#9fe0a8]">View signals</summary>
-                            <div className="mt-3 grid gap-2 text-xs leading-5 text-[#d9e1d8]/72">
-                              <p>Schema: {scan.report?.scoreBreakdown?.schema ?? "N/A"}/100</p>
-                              <p>Content: {scan.report?.scoreBreakdown?.content ?? "N/A"}/100</p>
-                              <p>EEAT: {scan.report?.scoreBreakdown?.eeat ?? "N/A"}/100</p>
-                              <p>Entities: {scan.report?.scoreBreakdown?.entities ?? "N/A"}/100</p>
-                              <p>Performance: {performance ?? "N/A"}/100</p>
-                              <p>Schema types: {(scan.report?.schema?.present || []).join(", ") || "None"}</p>
-                            </div>
-                          </details>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-              {!scans.length && (
-                <div className="py-12 text-center text-[#d9e1d8]/62">No saved scans yet.</div>
-              )}
-            </div>
+            <ScansDataTable rows={scanRows} />
           </>
         )}
       </section>
