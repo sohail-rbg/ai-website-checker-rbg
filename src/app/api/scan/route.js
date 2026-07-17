@@ -31,6 +31,13 @@ function cleanEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : "";
 }
 
+function cleanPhone(value) {
+  const phone = String(value || "").replace(/[^\d+().\-\s]/g, "").replace(/\s+/g, " ").trim();
+  const digits = phone.replace(/\D/g, "");
+  if (digits.length < 8 || digits.length > 15 || /^(\d)\1+$/.test(digits)) return "";
+  return /\d[\d\s().-]{7,}\d/.test(phone) ? phone.slice(0, 80) : "";
+}
+
 function cleanLocation(value) {
   if (!value || typeof value !== "object") return {};
 
@@ -75,6 +82,7 @@ async function saveScanRecord(request, report, body = {}) {
       finalUrl: report.finalUrl,
       email: cleanEmail(body.email),
       entityEmail: cleanEmail(report.entities?.emails?.[0]),
+      entityPhone: cleanPhone(report.entities?.phones?.[0]),
       overallScore: report.overallScore,
       grade: report.grade,
       topRecommendations: (report.recommendations || []).slice(0, 5).map((item) => item.title),

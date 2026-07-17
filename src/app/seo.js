@@ -3,7 +3,7 @@ export const siteName = "ScanSiteAI";
 export const contactEmail = "info@scansiteai.com";
 
 export const defaultDescription =
-  "ScanSiteAI audits robots.txt, sitemap.xml, schema, metadata, content clarity, entities, EEAT and performance so AI answer engines can understand your website.";
+  "See exactly why ChatGPT, Gemini, and Google AI Overviews might be skipping your site. Free live scan, no signup, results in minutes.";
 
 export const defaultKeywords = [
   "ScanSiteAI",

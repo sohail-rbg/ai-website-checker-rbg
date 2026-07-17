@@ -11,6 +11,9 @@ const USER_AGENT = "ScanSiteAI/1.0 (+https://scansiteai.com)";
 const BROWSER_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36";
 const REQUEST_TIMEOUT = 15000;
 const LIGHTHOUSE_TIMEOUT = 18000;
+const CONTACT_PAGE_LIMIT = 3;
+const EMAIL_PATTERN = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
+const PHONE_PATTERN = /(?:\+?\d[\d\s().-]{7,}\d)/g;
 const MAX_REDIRECTS = 5;
 const DEFAULT_HEADERS = {
   "User-Agent": USER_AGENT,
@@ -52,6 +55,57 @@ function absoluteUrl(base, path) {
 
 function unique(values) {
   return [...new Set(values.filter(Boolean))];
+}
+
+function uniqueBy(values, keyFor) {
+  const seen = new Set();
+  return values.filter((value) => {
+    const key = keyFor(value);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function safeDecode(value) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
+function normalizeEmail(value) {
+  const match = String(value || "").match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+  return match ? match[0].toLowerCase() : "";
+}
+
+function normalizePhone(value) {
+  const phone = String(value || "")
+    .replace(/[^\d+().\-\s]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  const digits = phone.replace(/\D/g, "");
+  if (digits.length < 8 || digits.length > 15) return "";
+  if (/^(\d)\1+$/.test(digits)) return "";
+  return phone;
+}
+
+function readablePhone(value) {
+  const phone = normalizePhone(value);
+  if (!phone) return "";
+  const digits = phone.replace(/\D/g, "");
+  if (digits.length === 10) return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
+  if (digits.length === 11 && digits.startsWith("1")) return `+1 ${digits.slice(1, 4)}-${digits.slice(4, 7)}-${digits.slice(7)}`;
+  return phone;
+}
+
+function normalizeObfuscatedContacts(text) {
+  return String(text || "")
+    .replace(/\s*(?:\[at\]|\(at\)|\bat\b)\s*/gi, "@")
+    .replace(/\s*(?:\[dot\]|\(dot\)|\bdot\b)\s*/gi, ".")
+    .replace(/\s+@\s+/g, "@")
+    .replace(/\s+\.\s+/g, ".");
 }
 
 function addRecommendation(items, rec) {
@@ -390,7 +444,7 @@ function analyzeEEAT($, url, text) {
   };
 }
 
-function extractEntities($, metadata, text) {
+function extractEntities($, metadata, text, sourceUrl = "", sourceName = "homepage") {
   const html = $.html();
   const schemaNodes = collectJsonLdNodes($);
   const schemaText = JSON.stringify(schemaNodes);
@@ -400,8 +454,29 @@ function extractEntities($, metadata, text) {
   const schemaCompanyName = schemaTextValue(organizationNode?.name);
   const companyName = metadata.title?.split(/[|-]/)[0]?.trim() || text.match(/(?:©|Copyright)\s+\d{4}\s+([^.\n]+)/i)?.[1]?.trim() || "";
   const schemaEmails = schemaNodes.map((node) => schemaTextValue(node.email));
-  const emails = unique([...(text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi) || []), ...schemaEmails]);
-  const phones = unique(text.match(/(?:\+?\d[\d\s().-]{7,}\d)/g) || []).slice(0, 5);
+  const linkHrefs = $("a[href]").map((_, el) => safeDecode($(el).attr("href") || "")).get();
+  const plainTextEmails = text.match(EMAIL_PATTERN) || [];
+  const obfuscatedEmails = normalizeObfuscatedContacts(text).match(EMAIL_PATTERN) || [];
+  const mailtoEmails = linkHrefs.flatMap((href) => href.match(/^mailto:([^?]+)/i)?.[1]?.match(EMAIL_PATTERN) || []);
+  const telPhones = linkHrefs.flatMap((href) => {
+    const value = href.match(/^tel:([^?]+)/i)?.[1] || "";
+    return value ? [value] : [];
+  });
+  const schemaPhones = schemaNodes.flatMap((node) => [schemaTextValue(node.telephone), schemaTextValue(node.phone)]);
+  const emailSources = [
+    ...plainTextEmails.map((value) => ({ type: "email", value: normalizeEmail(value), source: "visible text", sourceName, sourceUrl })),
+    ...obfuscatedEmails.map((value) => ({ type: "email", value: normalizeEmail(value), source: "obfuscated text", sourceName, sourceUrl })),
+    ...mailtoEmails.map((value) => ({ type: "email", value: normalizeEmail(value), source: "mailto link", sourceName, sourceUrl })),
+    ...schemaEmails.map((value) => ({ type: "email", value: normalizeEmail(value), source: "schema", sourceName, sourceUrl })),
+  ];
+  const phoneSources = [
+    ...(text.match(PHONE_PATTERN) || []).map((value) => ({ type: "phone", value: readablePhone(value), source: "visible text", sourceName, sourceUrl })),
+    ...telPhones.map((value) => ({ type: "phone", value: readablePhone(value), source: "tel link", sourceName, sourceUrl })),
+    ...schemaPhones.map((value) => ({ type: "phone", value: readablePhone(value), source: "schema", sourceName, sourceUrl })),
+  ];
+  const contactSources = uniqueBy([...emailSources, ...phoneSources].filter((item) => item.value), (item) => `${item.type}:${item.value}:${item.sourceUrl || item.sourceName}`);
+  const emails = unique(contactSources.filter((item) => item.type === "email").map((item) => item.value));
+  const phones = unique(contactSources.filter((item) => item.type === "phone").map((item) => item.value)).slice(0, 5);
   const schemaServices = serviceNodes.map((node) => schemaTextValue(node.name));
   const visibleServices = $("h1,h2,h3,a").map((_, el) => $(el).text().trim()).get().filter((value) => /service|solution|product|platform|consulting|software|agency/i.test(value));
   const services = unique([...schemaServices, ...visibleServices]).slice(0, 10);
@@ -412,7 +487,75 @@ function extractEntities($, metadata, text) {
   const score = clampScore((detectedCompanyName ? 20 : 0) + (emails.length ? 15 : 0) + (phones.length ? 15 : 0) + (address ? 15 : 0) + (services.length ? 20 : 0) + (/Organization|LocalBusiness|Product|Service/i.test(schemaText) ? 15 : 0));
   const schemaProducts = productNodes.map((node) => schemaTextValue(node.name));
   const products = unique([...schemaProducts, ...services.filter((s) => /product|platform|software/i.test(s))]).slice(0, 10);
-  return { score, companyName: detectedCompanyName, brand: metadata.title || detectedCompanyName, products, services, founders, phones, emails, address, locations, htmlSignals: html.length };
+  return { score, companyName: detectedCompanyName, brand: metadata.title || detectedCompanyName, products, services, founders, phones, emails, contactSources, address, locations, htmlSignals: html.length };
+}
+
+function entityScore(entity, hasSchemaSignal = false) {
+  return clampScore((entity.companyName ? 20 : 0) + (entity.emails?.length ? 15 : 0) + (entity.phones?.length ? 15 : 0) + (entity.address ? 15 : 0) + (entity.services?.length ? 20 : 0) + (hasSchemaSignal ? 15 : 0));
+}
+
+function mergeEntities(primary, extras = []) {
+  const merged = extras.reduce((current, extra) => ({
+    ...current,
+    companyName: current.companyName || extra.companyName,
+    brand: current.brand || extra.brand,
+    address: current.address || extra.address,
+    products: unique([...(current.products || []), ...(extra.products || [])]).slice(0, 10),
+    services: unique([...(current.services || []), ...(extra.services || [])]).slice(0, 10),
+    founders: unique([...(current.founders || []), ...(extra.founders || [])]).slice(0, 5),
+    emails: unique([...(current.emails || []), ...(extra.emails || [])]).slice(0, 5),
+    phones: unique([...(current.phones || []), ...(extra.phones || [])]).slice(0, 5),
+    locations: unique([...(current.locations || []), ...(extra.locations || [])]).slice(0, 8),
+    contactSources: uniqueBy([...(current.contactSources || []), ...(extra.contactSources || [])], (item) => `${item.type}:${item.value}:${item.sourceUrl || item.sourceName}`),
+    htmlSignals: (current.htmlSignals || 0) + (extra.htmlSignals || 0),
+    scannedContactPages: unique([...(current.scannedContactPages || []), ...(extra.scannedContactPages || [])]),
+  }), primary);
+
+  return {
+    ...merged,
+    score: Math.max(primary.score || 0, entityScore(merged, Boolean(merged.services?.length || merged.products?.length))),
+  };
+}
+
+function findContactPageUrls($, baseUrl) {
+  const base = new URL(baseUrl);
+  const candidates = $("a[href]").map((_, el) => {
+    const href = $(el).attr("href") || "";
+    const url = absoluteUrl(baseUrl, href);
+    if (!url || !/^https?:/i.test(url)) return null;
+    const parsed = new URL(url);
+    if (parsed.hostname !== base.hostname) return null;
+    parsed.hash = "";
+    const label = `${$(el).text()} ${parsed.pathname}`.replace(/\s+/g, " ").toLowerCase();
+    if (!/(contact|get-in-touch|about|location|locations|office|offices|team)/i.test(label)) return null;
+    const priority = /contact|get-in-touch/i.test(label) ? 0 : /location|office/i.test(label) ? 1 : 2;
+    return { url: parsed.toString(), priority };
+  }).get().filter(Boolean);
+
+  return uniqueBy(candidates.sort((a, b) => a.priority - b.priority), (item) => item.url)
+    .map((item) => item.url)
+    .filter((url) => url !== baseUrl)
+    .slice(0, CONTACT_PAGE_LIMIT);
+}
+
+async function extractContactPageEntities($, baseUrl) {
+  const urls = findContactPageUrls($, baseUrl);
+  if (!urls.length) return [];
+
+  const results = await Promise.allSettled(urls.map(async (pageUrl) => {
+    await assertPublicUrl(pageUrl);
+    const response = await fetchText(pageUrl, { timeout: 5000 });
+    if (response.status >= 400) return null;
+    const page$ = cheerio.load(response.data || "");
+    const metadata = analyzeMetadata(page$);
+    const content = analyzeContent(page$);
+    const entities = extractEntities(page$, metadata, content.text, response.finalUrl || pageUrl, "contact page");
+    return { ...entities, scannedContactPages: [response.finalUrl || pageUrl] };
+  }));
+
+  return results
+    .filter((result) => result.status === "fulfilled" && result.value)
+    .map((result) => result.value);
 }
 
 async function analyzeRobots(baseUrl) {
@@ -773,13 +916,15 @@ export async function scanWebsite(inputUrl) {
   const links = await checkInternalLinks(analyzeLinks($, finalUrl));
   const content = analyzeContent($);
   const eeat = analyzeEEAT($, finalUrl, content.text);
-  const entities = extractEntities($, metadata, content.text);
-  const [robots, sitemap, performance, preview] = await Promise.all([
+  const homepageEntities = extractEntities($, metadata, content.text, finalUrl, "homepage");
+  const [robots, sitemap, performance, preview, contactPageEntities] = await Promise.all([
     analyzeRobots(finalUrl),
     analyzeSitemap(finalUrl),
     runLighthouse(finalUrl, response),
     captureHomepagePreview(finalUrl),
+    extractContactPageEntities($, finalUrl),
   ]);
+  const entities = mergeEntities(homepageEntities, contactPageEntities);
   const scored = scoreAll({ metadata, schema, performance, content, eeat, entities, robots, sitemap, links, images });
   const recommendations = buildRecommendations({ metadata, schema, headings, images, links, content, eeat, robots, sitemap, performance, entities });
   const platformScores = calculatePlatformScores(scored.scores, schema, content, eeat, entities, robots);

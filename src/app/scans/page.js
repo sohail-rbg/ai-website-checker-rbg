@@ -48,6 +48,20 @@ function formatBrowser(browser, userAgent) {
   return "Unknown browser";
 }
 
+function contactKey(type, value) {
+  const clean = String(value || "").toLowerCase();
+  return type === "phone" ? clean.replace(/\D/g, "") : clean;
+}
+
+function formatContactSource(scan, type, value) {
+  const expected = contactKey(type, value);
+  const source = (scan.report?.entities?.contactSources || []).find((item) => item.type === type && contactKey(type, item.value) === expected);
+  if (!source) return type === "phone" ? "Entity phone" : "Entity email";
+
+  const location = source.sourceName === "homepage" ? "homepage" : "contact page";
+  return `${source.source} · ${location}`;
+}
+
 export default async function ScansPage({ searchParams }) {
   const params = await searchParams;
   const token = params?.token;
@@ -71,7 +85,7 @@ export default async function ScansPage({ searchParams }) {
     scans = await Scan.find({})
       .sort({ scannedAt: -1 })
       .limit(100)
-      .select("requestedUrl finalUrl email entityEmail overallScore grade topRecommendations userAgent browser location scannedAt createdAt report.scoreBreakdown report.performance report.schema report.entities report.recommendations")
+      .select("requestedUrl finalUrl email entityEmail entityPhone overallScore grade topRecommendations userAgent browser location scannedAt createdAt report.scoreBreakdown report.performance report.schema report.entities report.recommendations")
       .lean();
   } catch (error) {
     dbError = error.message || "Could not load scan records.";
@@ -91,6 +105,9 @@ export default async function ScansPage({ searchParams }) {
     const country = formatCountry(scan.location);
     const browser = formatBrowser(scan.browser, scan.userAgent);
     const displayEmail = scan.email || scan.entityEmail || scan.report?.entities?.emails?.[0] || "";
+    const displayPhone = scan.entityPhone || scan.report?.entities?.phones?.[0] || "";
+    const emailCount = scan.report?.entities?.emails?.length || (displayEmail ? 1 : 0);
+    const phoneCount = scan.report?.entities?.phones?.length || (displayPhone ? 1 : 0);
     const website = scan.finalUrl || scan.requestedUrl;
     const score = Number.isFinite(Number(scan.overallScore)) ? Number(scan.overallScore) : null;
     const dateValue = new Date(scan.scannedAt || scan.createdAt || 0).getTime();
@@ -101,11 +118,13 @@ export default async function ScansPage({ searchParams }) {
       entities: scan.report?.scoreBreakdown?.entities ?? "N/A",
       performance,
       schemaTypes: (scan.report?.schema?.present || []).join(", "),
+      contactPages: (scan.report?.entities?.scannedContactPages || []).join(", "),
     };
     const searchText = [
       website,
       scan.requestedUrl,
       displayEmail,
+      displayPhone,
       location,
       country,
       browser,
@@ -116,6 +135,7 @@ export default async function ScansPage({ searchParams }) {
       topRecommendation,
       company,
       signals.schemaTypes,
+      signals.contactPages,
     ].filter(Boolean).join(" ").toLowerCase();
 
     return {
@@ -125,6 +145,11 @@ export default async function ScansPage({ searchParams }) {
       requestedUrl: scan.requestedUrl || website,
       email: displayEmail,
       emailSource: !scan.email && displayEmail ? "entity" : "submitted",
+      emailSourceLabel: scan.email ? "Submitted email" : displayEmail ? formatContactSource(scan, "email", displayEmail) : "",
+      emailMoreCount: Math.max(emailCount - 1, 0),
+      phone: displayPhone,
+      phoneSourceLabel: displayPhone ? formatContactSource(scan, "phone", displayPhone) : "",
+      phoneMoreCount: Math.max(phoneCount - 1, 0),
       location,
       country,
       browser,

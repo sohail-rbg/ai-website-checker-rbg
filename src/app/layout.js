@@ -22,7 +22,7 @@ export const metadata = {
   metadataBase: new URL(siteUrl),
   applicationName: siteName,
   title: {
-    default: "ScanSiteAI | AI Website Readiness Checker and LLM Search Audit",
+    default: "ScanSiteAI – Free AI Website Readiness Checker",
     template: "%s | ScanSiteAI",
   },
   description: defaultDescription,
@@ -47,7 +47,7 @@ export const metadata = {
     locale: "en_US",
     url: "/",
     siteName,
-    title: "ScanSiteAI - AI Website Readiness Checker",
+    title: "ScanSiteAI – Free AI Website Readiness Checker",
     description: defaultDescription,
     images: [
       {
@@ -60,7 +60,7 @@ export const metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "ScanSiteAI - AI Website Readiness Checker",
+    title: "ScanSiteAI – Free AI Website Readiness Checker",
     description: defaultDescription,
     images: ["/logo.png"],
   },

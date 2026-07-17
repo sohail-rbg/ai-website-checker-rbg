@@ -6,6 +6,7 @@ const ScanSchema = new mongoose.Schema(
     finalUrl: { type: String, trim: true, index: true },
     email: { type: String, trim: true, lowercase: true, index: true },
     entityEmail: { type: String, trim: true, lowercase: true, index: true },
+    entityPhone: { type: String, trim: true, index: true },
     lead: { type: mongoose.Schema.Types.ObjectId, ref: "Lead", index: true },
     submission: { type: mongoose.Schema.Types.ObjectId, ref: "Submission", index: true },
     overallScore: { type: Number, min: 0, max: 100 },

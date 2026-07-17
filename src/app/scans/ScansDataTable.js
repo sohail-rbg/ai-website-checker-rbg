@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 const columns = [
   { key: "website", label: "Website", sortable: true },
   { key: "email", label: "Email", sortable: true },
+  { key: "phone", label: "Phone", sortable: true },
   { key: "location", label: "Location", sortable: true },
   { key: "country", label: "Country", sortable: true },
   { key: "browser", label: "Browser", sortable: true },
@@ -96,7 +97,7 @@ export default function ScansDataTable({ rows }) {
       </div>
 
       <div className="overflow-x-auto border-t border-[#8B9C8C]/15">
-        <table className="w-full min-w-[1500px] border-collapse text-left text-sm">
+        <table className="w-full min-w-[1650px] border-collapse text-left text-sm">
           <thead className="text-[#8B9C8C]">
             <tr>
               {columns.map((column) => (
@@ -137,7 +138,19 @@ export default function ScansDataTable({ rows }) {
                   ) : (
                     <span className="text-[#d9e1d8]/45">Not detected</span>
                   )}
-                  {row.emailSource === "entity" && <p className="mt-1 text-xs text-[#d9e1d8]/45">Entity email</p>}
+                  {row.emailSourceLabel && <p className="mt-1 text-xs text-[#d9e1d8]/45">{row.emailSourceLabel}</p>}
+                  {row.emailMoreCount > 0 && <p className="mt-1 text-xs text-[#9fe0a8]/70">+{row.emailMoreCount} more</p>}
+                </td>
+                <td className="max-w-[180px] px-5 py-5">
+                  {row.phone ? (
+                    <a href={`tel:${row.phone}`} className="font-semibold text-[#9fe0a8] underline decoration-[#8B9C8C]/35 underline-offset-4">
+                      <span className="line-clamp-1 break-all">{row.phone}</span>
+                    </a>
+                  ) : (
+                    <span className="text-[#d9e1d8]/45">Not detected</span>
+                  )}
+                  {row.phoneSourceLabel && <p className="mt-1 text-xs text-[#d9e1d8]/45">{row.phoneSourceLabel}</p>}
+                  {row.phoneMoreCount > 0 && <p className="mt-1 text-xs text-[#9fe0a8]/70">+{row.phoneMoreCount} more</p>}
                 </td>
                 <td className="max-w-[220px] px-5 py-5"><span className="line-clamp-2">{row.location}</span></td>
                 <td className="max-w-[160px] px-5 py-5"><span className="line-clamp-2">{row.country}</span></td>
@@ -160,6 +173,7 @@ export default function ScansDataTable({ rows }) {
                       <p>Entities: {row.signals.entities}/100</p>
                       <p>Performance: {row.signals.performance}/100</p>
                       <p>Schema types: {row.signals.schemaTypes || "None"}</p>
+                      <p>Contact pages: {row.signals.contactPages || "None"}</p>
                     </div>
                   </details>
                 </td>

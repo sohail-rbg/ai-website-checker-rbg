@@ -45,9 +45,18 @@ function buildSiteJsonLd({ siteUrl, siteName, contactEmail, defaultDescription }
         "@id": `${siteUrl}/#software`,
         name: siteName,
         applicationCategory: "SEOApplication",
+        applicationSubCategory: "AI website readiness checker",
         operatingSystem: "Web",
+        url: siteUrl,
         description: defaultDescription,
         mainEntityOfPage: siteUrl,
+        offers: {
+          "@type": "Offer",
+          url: siteUrl,
+          price: "0",
+          priceCurrency: "USD",
+          availability: "https://schema.org/OnlineOnly",
+        },
         provider: {
           "@id": `${siteUrl}/#organization`,
         },
@@ -114,18 +123,34 @@ function buildSiteJsonLd({ siteUrl, siteName, contactEmail, defaultDescription }
         mainEntity: [
           {
             "@type": "Question",
-            name: "What does ScanSiteAI analyze?",
+            name: "Is this the same as regular SEO?",
             acceptedAnswer: {
               "@type": "Answer",
-              text: "It analyzes crawler access, metadata, structured data, headings, images, links, content clarity, EEAT signals, entity extraction, sitemap coverage and performance signals.",
+              text: "No. Regular SEO helps you rank higher on Google. This tool checks whether AI tools like ChatGPT and Gemini can understand your website well enough to use it in an answer.",
             },
           },
           {
             "@type": "Question",
-            name: "Is this traditional SEO scoring?",
+            name: "Can I get my results by email?",
             acceptedAnswer: {
               "@type": "Answer",
-              text: "No. The score is focused on whether AI systems and answer engines can crawl, understand, reference and recommend a website.",
+              text: "Yes. Once your scan is complete, enter your email and you will receive the complete report with the option to request a strategy call.",
+            },
+          },
+          {
+            "@type": "Question",
+            name: "What does it mean if AI tools cannot read my website?",
+            acceptedAnswer: {
+              "@type": "Answer",
+              text: "It means AI tools may skip your site when answering questions, usually because of unclear content, missing trust signals or technical settings that limit discovery.",
+            },
+          },
+          {
+            "@type": "Question",
+            name: "Are the platform scores official ratings?",
+            acceptedAnswer: {
+              "@type": "Answer",
+              text: "No. Platform scores are estimates derived from live technical signals such as schema, crawler access, content clarity, EEAT, entities and performance.",
             },
           },
         ],
