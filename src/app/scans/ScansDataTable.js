@@ -3,7 +3,8 @@
 import { useMemo, useState } from "react";
 
 const columns = [
-  { key: "website", label: "Website", sortable: true },
+  { key: "website", label: "Website URL", sortable: true },
+  { key: "requestedUrl", label: "Submitted URL", sortable: true },
   { key: "email", label: "Email", sortable: true },
   { key: "phone", label: "Phone", sortable: true },
   { key: "location", label: "Location", sortable: true },
@@ -97,7 +98,7 @@ export default function ScansDataTable({ rows }) {
       </div>
 
       <div className="overflow-x-auto border-t border-[#8B9C8C]/15">
-        <table className="w-full min-w-[1650px] border-collapse text-left text-sm">
+        <table className="w-full min-w-[1850px] border-collapse text-left text-sm">
           <thead className="text-[#8B9C8C]">
             <tr>
               {columns.map((column) => (
@@ -126,9 +127,17 @@ export default function ScansDataTable({ rows }) {
                   <a href={row.websiteHref} target="_blank" rel="noreferrer" className="font-semibold text-white underline decoration-[#8B9C8C]/35 underline-offset-4 transition hover:text-[#9fe0a8]">
                     <span className="line-clamp-2 break-all">{row.website}</span>
                   </a>
-                  {row.requestedUrl !== row.website && (
-                    <p className="mt-2 line-clamp-1 break-all text-xs text-[#d9e1d8]/45">Requested: {row.requestedUrl}</p>
+                  {row.requestedUrl !== row.website && <p className="mt-2 text-xs text-[#d9e1d8]/45">Resolved URL</p>}
+                </td>
+                <td className="max-w-[320px] px-5 py-5">
+                  {row.requestedUrl ? (
+                    <a href={row.requestedUrl} target="_blank" rel="noreferrer" className="font-semibold text-[#d9e1d8] underline decoration-[#8B9C8C]/30 underline-offset-4 transition hover:text-[#9fe0a8]">
+                      <span className="line-clamp-2 break-all">{row.requestedUrl}</span>
+                    </a>
+                  ) : (
+                    <span className="text-[#d9e1d8]/45">Not available</span>
                   )}
+                  {row.requestedUrl !== row.website && <p className="mt-2 text-xs text-[#d9e1d8]/45">Submitted URL</p>}
                 </td>
                 <td className="max-w-[220px] px-5 py-5">
                   {row.email ? (

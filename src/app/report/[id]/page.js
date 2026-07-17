@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowRight, BadgeCheck, BarChart3, CalendarClock, CheckCircle2, CircleAlert, FileText, Globe2, Lightbulb, MailCheck, RefreshCw, ShieldCheck, Sparkles, Wrench } from "lucide-react";
@@ -199,8 +200,24 @@ export default async function ReportPage({ params, searchParams }) {
         </div>
       </div>
 
+      <section className={styles.expertBanner}>
+        <div>
+          <span><Sparkles size={18} aria-hidden="true" />Next best step</span>
+          <strong>Talk with a ScanSiteAI expert about these fixes.</strong>
+          <p>Review your score, priority recommendations and AI crawler gaps in a focused 15-minute call.</p>
+        </div>
+        <a href="https://calendly.com/scansiteai-info/15min" target="_blank" rel="noreferrer">
+          Talk with expert
+          <ArrowRight size={18} aria-hidden="true" />
+        </a>
+      </section>
+
       <section className={styles.hero}>
         <div className={styles.heroContent}>
+          <div className={styles.reportBrand}>
+            <Image src="/logo.png" alt="ScanSiteAI logo" width={238} height={72} priority />
+            <span>Complete AI readiness report</span>
+          </div>
           <p className={styles.eyebrow}>ScanSiteAI report</p>
           <h1>AI Website Readiness Report</h1>
           <a className={styles.websiteLink} href={website} target="_blank" rel="noreferrer">

@@ -30,6 +30,7 @@
 }
 
 .topbar,
+.expertBanner,
 .hero,
 .grid,
 .section {
@@ -41,6 +42,72 @@
 
 .topbar {
   margin-bottom: 24px;
+}
+
+.expertBanner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 22px;
+  margin-bottom: 18px;
+  overflow: hidden;
+  border: 1px solid rgba(159, 224, 168, 0.24);
+  border-radius: 24px;
+  background:
+    linear-gradient(135deg, rgba(144, 238, 154, 0.16), rgba(46, 94, 83, 0.08)),
+    rgba(5, 12, 9, 0.88);
+  padding: 18px 20px;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.expertBanner div {
+  min-width: 0;
+}
+
+.expertBanner span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #9fe0a8;
+  font-size: 0.76rem;
+  font-weight: 850;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+}
+
+.expertBanner strong {
+  display: block;
+  margin-top: 8px;
+  color: #ffffff;
+  font-size: clamp(1.08rem, 2vw, 1.38rem);
+  line-height: 1.25;
+}
+
+.expertBanner p {
+  margin: 6px 0 0;
+  color: rgba(217, 225, 216, 0.72);
+  line-height: 1.55;
+}
+
+.expertBanner a {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 48px;
+  border-radius: 999px;
+  background: #9fe0a8;
+  color: #020302;
+  padding: 12px 18px;
+  font-weight: 900;
+  text-decoration: none;
+  transition: background .2s ease, transform .2s ease;
+}
+
+.expertBanner a:hover {
+  background: #b8f4bf;
+  transform: translateY(-1px);
 }
 
 .actions {
@@ -103,6 +170,30 @@
 .scorePanel {
   position: relative;
   z-index: 1;
+}
+
+.reportBrand {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  max-width: 100%;
+  border: 1px solid rgba(139, 156, 140, 0.16);
+  border-radius: 999px;
+  background: rgba(2, 8, 6, 0.56);
+  padding: 8px 14px 8px 10px;
+}
+
+.reportBrand img {
+  width: 132px;
+  height: auto;
+}
+
+.reportBrand span {
+  color: rgba(217, 225, 216, 0.72);
+  font-size: 0.78rem;
+  font-weight: 850;
+  letter-spacing: .16em;
+  text-transform: uppercase;
 }
 
 .eyebrow,
@@ -491,6 +582,7 @@
 
 @media print {
   .actions,
+  .expertBanner,
   .topbar {
     display: none;
   }
@@ -507,6 +599,11 @@
 }
 
 @media (max-width: 900px) {
+  .expertBanner {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
   .hero,
   .recommendationTop,
   .recommendationGrid {
@@ -536,6 +633,17 @@
   .actions {
     justify-content: flex-start;
     flex-wrap: wrap;
+  }
+
+  .expertBanner a {
+    width: 100%;
+  }
+
+  .reportBrand {
+    align-items: flex-start;
+    flex-direction: column;
+    border-radius: 22px;
+    padding: 12px;
   }
 
   .bars > div {
