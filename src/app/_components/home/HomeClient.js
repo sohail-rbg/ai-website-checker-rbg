@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -550,6 +550,41 @@ function HeroCtaBand() {
   );
 }
 
+function DesktopIframePreview({ url, host }) {
+  const viewportRef = useRef(null);
+  const [scale, setScale] = useState(0.4);
+
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return undefined;
+    const updateScale = () => setScale(viewport.clientWidth / 1280);
+    updateScale();
+    const observer = new ResizeObserver(updateScale);
+    observer.observe(viewport);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div ref={viewportRef} className="relative size-full overflow-hidden bg-white">
+      <iframe
+        src={url}
+        title={`${host || "Scanned website"} live desktop preview`}
+        width="1280"
+        height="800"
+        loading="lazy"
+        referrerPolicy="no-referrer"
+        sandbox="allow-forms allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts"
+        className="absolute left-0 top-0 border-0 bg-white"
+        style={{ transform: `scale(${scale})`, transformOrigin: "top left" }}
+      />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-center justify-between gap-3 bg-gradient-to-t from-black/80 via-black/50 to-transparent px-4 pb-3 pt-8 text-[10px] text-white/75">
+        <span>Live desktop fallback</span>
+        <span>If blank, this website blocks embedded previews.</span>
+      </div>
+    </div>
+  );
+}
+
 export function Dashboard({ report, onReset }) {
   const [failedFaviconUrl, setFailedFaviconUrl] = useState("");
   const [failedPreviewUrl, setFailedPreviewUrl] = useState("");
@@ -721,13 +756,14 @@ export function Dashboard({ report, onReset }) {
                       className="size-full object-cover"
                       onError={() => setFailedPreviewUrl(previewImage)}
                     />
+                  ) : scannedUrl ? (
+                    <DesktopIframePreview url={scannedUrl} host={scannedHost} />
                   ) : (
                     <div className="grid size-full place-items-center p-8 text-center">
                       <div>
                         <Globe2 className="mx-auto text-[#90ee9a]" size={42} strokeWidth={1.7} aria-hidden="true" />
-                        <p className="mt-4 text-sm font-semibold text-white">Preview unavailable</p>
-                        <p className="mt-2 text-sm leading-6 text-[#d9e1d8]/62">{report.preview?.error || "The site blocked browser capture, but the technical scan still completed."}</p>
-                        <p className="mt-2 text-xs text-[#8B9C8C]">Preview status does not affect readiness scoring.</p>
+                        <p className="mt-4 text-sm font-semibold text-white">Website preview unavailable</p>
+                        <p className="mt-2 text-xs text-[#8B9C8C]">Preview availability never affects readiness scoring.</p>
                       </div>
                     </div>
                   )}
