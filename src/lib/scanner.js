@@ -741,7 +741,7 @@ async function analyzeSitemap(baseUrl) {
   }
 }
 
-function estimatePerformanceFromResponse(response) {
+function estimatePerformanceFromResponse(response, reason = "Lighthouse is disabled.") {
   const responseTimeMs = response.durationMs || 0;
   const htmlBytes = Buffer.byteLength(String(response.data || ""), "utf8");
   const transferBytes = Number(response.headers?.["content-length"] || htmlBytes);
@@ -767,7 +767,33 @@ function estimatePerformanceFromResponse(response) {
     responseTimeMs,
     htmlBytes,
     transferBytes,
-    error: "Lighthouse is disabled. Performance is estimated from real HTTP response timing and document weight.",
+    error: `${reason} Lab performance and accessibility were not measured. HTTP timing is shown separately and does not affect the Lighthouse score.`,
+  };
+}
+
+async function runPageSpeedFallback(url) {
+  const key = process.env.GOOGLE_PAGESPEED_API_KEY;
+  if (!key) return null;
+  const response = await axios.get("https://www.googleapis.com/pagespeedonline/v5/runPagespeed", {
+    timeout: 30000,
+    params: { url, key, strategy: "mobile", category: ["performance", "accessibility", "seo", "best-practices"] },
+    paramsSerializer: { indexes: null },
+  });
+  const categories = response.data?.lighthouseResult?.categories || {};
+  const scoreFor = (name) => Number.isFinite(categories[name]?.score)
+    ? clampScore(categories[name].score * 100)
+    : null;
+  return {
+    score: scoreFor("performance"),
+    performance: scoreFor("performance"),
+    accessibility: scoreFor("accessibility"),
+    seo: scoreFor("seo"),
+    bestPractices: scoreFor("best-practices"),
+    source: "Google PageSpeed Insights",
+    strategy: "mobile",
+    fallback: false,
+    skipped: false,
+    error: null,
   };
 }
 
@@ -804,7 +830,13 @@ async function runLighthouse(url, initialResponse) {
       error: null,
     };
   } catch (error) {
-    return { score: 0, performance: 0, accessibility: 0, seo: 0, bestPractices: 0, error: error.message };
+    try {
+      const pageSpeed = await runPageSpeedFallback(url);
+      if (pageSpeed) return pageSpeed;
+    } catch {
+      // A failed external fallback is reported as not measured, never as a zero score.
+    }
+    return estimatePerformanceFromResponse(initialResponse, "Lighthouse could not run on this server.");
   } finally {
     if (browser) await browser.close();
   }
