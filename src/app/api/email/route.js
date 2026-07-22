@@ -97,11 +97,15 @@ function databaseErrorPayload(error, code) {
 }
 
 function buildReportEmail({ website, overallScore, grade, topImprovements, report, wantsCall, reportUrl }) {
+  const brandOrigin = reportUrl ? new URL(reportUrl).origin : "https://scansiteai.com";
+  const logoUrl = `${brandOrigin}/logo.png`;
+  const consultationUrl = "https://calendly.com/scansiteai-info/15min";
   const platforms = Array.isArray(report?.platformScores) ? report.platformScores : [];
   const scoreBreakdown = report?.scoreBreakdown || {};
   const entities = report?.entities || {};
-  const checklist = report?.checklist || {};
-  const recommendations = Array.isArray(report?.recommendations) ? report.recommendations.slice(0, 10) : [];
+  const recommendations = Array.isArray(report?.recommendations) ? report.recommendations : [];
+  const diagnosticSummary = report?.siteAudit?.diagnostics?.summary || {};
+  const coverage = report?.siteAudit?.coverage || {};
 
   const text = [
     "Your AI Website Readiness Report",
@@ -110,13 +114,13 @@ function buildReportEmail({ website, overallScore, grade, topImprovements, repor
     `Overall Score: ${overallScore}/100`,
     `Grade: ${grade || "N/A"}`,
     wantsCall ? "Call request: Yes" : "Call request: No",
-    reportUrl ? `Hosted report: ${reportUrl}` : "",
     "",
     "Top Improvements:",
     ...topImprovements.map((item, index) => `${index + 1}. ${item}`),
     "",
-    "AI Platform Scores:",
-    ...platforms.map((item) => `${item.platform}: ${item.score}% - ${item.status}`),
+    "Estimated Platform Technical Readiness:",
+    ...platforms.map((item) => `${item.platform}: ${item.tier || item.status || "Not measured"} (${item.confidence || "low"} confidence)`),
+    "Proprietary readiness assessment; not an official platform rating or citation probability.",
     "",
     "Score Breakdown:",
     ...Object.entries(scoreBreakdown).map(([key, value]) => `${formatScoreLabel(key)}: ${value}/100`),
@@ -126,8 +130,18 @@ function buildReportEmail({ website, overallScore, grade, topImprovements, repor
     `Email: ${(entities.emails || [])[0] || "Not detected"}`,
     `Phone: ${(entities.phones || [])[0] || "Not detected"}`,
     "",
-    "Detailed Recommendations:",
+    "Scan Coverage:",
+    `Pages scanned: ${coverage.scanned ?? "Not available"}`,
+    `Checks passed: ${diagnosticSummary.pass ?? 0}`,
+    `Warnings: ${diagnosticSummary.warning ?? 0}`,
+    `Failed checks: ${diagnosticSummary.fail ?? 0}`,
+    `Not measured: ${diagnosticSummary.notMeasured ?? 0}`,
+    "",
+    `All Improvements (${recommendations.length}):`,
     ...recommendations.map((item, index) => `${index + 1}. ${item.title} - ${item.howToFix || item.description}`),
+    "",
+    "Talk with a ScanSiteAI expert about these fixes.",
+    `Schedule a focused 15-minute review: ${consultationUrl}`,
     "",
     "Thank you for using ScanSiteAI.",
   ].join("\n");
@@ -140,13 +154,14 @@ function buildReportEmail({ website, overallScore, grade, topImprovements, repor
             <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:760px;border-collapse:collapse">
               <tr>
                 <td style="border-radius:28px 28px 0 0;background:#020302;background-image:linear-gradient(135deg,#020302,#11231f 56%,#262a53);padding:34px 30px;color:#ffffff">
-                  <p style="margin:0 0 12px;color:#8B9C8C;font-size:12px;font-weight:700;letter-spacing:.22em;text-transform:uppercase">ScanSiteAI</p>
+                  <img src="${escapeHtml(logoUrl)}" width="190" alt="ScanSiteAI" style="display:block;width:190px;max-width:70%;height:auto;margin:0 0 26px;border:0" />
+                  <p style="margin:0 0 12px;color:#90ee9a;font-size:12px;font-weight:700;letter-spacing:.22em;text-transform:uppercase">Complete Website Audit</p>
                   <h1 style="margin:0;font-size:34px;line-height:1.08;letter-spacing:-.02em;color:#ffffff">Your Complete AI Readiness Report</h1>
                   <p style="margin:14px 0 0;color:#d9e1d8;font-size:15px;line-height:1.7;word-break:break-word">${escapeHtml(website)}</p>
                   <table role="presentation" cellspacing="0" cellpadding="0" style="margin-top:24px">
                     <tr>
                       <td style="padding:0 24px 0 0;border-right:1px solid rgba(255,255,255,.18)">
-                        <div style="font-size:58px;font-weight:800;line-height:1;color:#8B9C8C">${overallScore}</div>
+                        <div style="font-size:58px;font-weight:800;line-height:1;color:#90ee9a">${overallScore}</div>
                         <div style="margin-top:6px;color:#d9e1d8;font-size:12px;text-transform:uppercase;letter-spacing:.16em">Overall Score</div>
                       </td>
                       <td style="padding-left:24px">
@@ -155,7 +170,6 @@ function buildReportEmail({ website, overallScore, grade, topImprovements, repor
                       </td>
                     </tr>
                   </table>
-                  ${reportUrl ? `<a href="${escapeHtml(reportUrl)}" style="display:inline-block;margin-top:26px;border-radius:999px;background:#8B9C8C;color:#020302;font-weight:800;text-decoration:none;padding:13px 20px">Open Hosted Report</a>` : ""}
                 </td>
               </tr>
               <tr>
@@ -174,16 +188,29 @@ function buildReportEmail({ website, overallScore, grade, topImprovements, repor
                     </tr>
                   </table>
 
-                  <h2 style="margin:28px 0 14px;color:#111827;font-size:20px">AI Platform Readiness</h2>
+                  <h2 style="margin:28px 0 14px;color:#111827;font-size:20px">Scan Coverage</h2>
+                  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-spacing:8px 0;margin-left:-8px;width:calc(100% + 16px)">
+                    <tr>
+                      ${[
+                        ["Pages", coverage.scanned ?? "N/A", "#2E5E53"],
+                        ["Passed", diagnosticSummary.pass ?? 0, "#168a46"],
+                        ["Warnings", diagnosticSummary.warning ?? 0, "#9a6a00"],
+                        ["Failed", diagnosticSummary.fail ?? 0, "#c4324f"],
+                      ].map(([label, value, color]) => `<td width="25%" style="border-radius:14px;background:#ffffff;border:1px solid #dfe5dd;padding:13px 8px;text-align:center"><strong style="display:block;color:${color};font-size:22px">${escapeHtml(value)}</strong><span style="color:#6b7280;font-size:10px;text-transform:uppercase;letter-spacing:.08em">${label}</span></td>`).join("")}
+                    </tr>
+                  </table>
+
+                  <h2 style="margin:28px 0 14px;color:#111827;font-size:20px">Estimated Platform Technical Readiness</h2>
                   <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-spacing:0 10px">
                     ${platforms.map((item) => `
                       <tr>
                         <td style="border-radius:16px 0 0 16px;background:#ffffff;border-left:1px solid #e5e7eb;border-top:1px solid #e5e7eb;border-bottom:1px solid #e5e7eb;padding:14px 16px;color:#111827;font-weight:800">${escapeHtml(item.platform)}</td>
-                        <td style="background:#ffffff;border-top:1px solid #e5e7eb;border-bottom:1px solid #e5e7eb;padding:14px 16px;color:#2E5E53;font-size:22px;font-weight:900;text-align:center">${item.score}%</td>
-                        <td style="border-radius:0 16px 16px 0;background:#ffffff;border-right:1px solid #e5e7eb;border-top:1px solid #e5e7eb;border-bottom:1px solid #e5e7eb;padding:14px 16px;color:#6b7280;text-align:right">${escapeHtml(item.status)}</td>
+                        <td style="background:#ffffff;border-top:1px solid #e5e7eb;border-bottom:1px solid #e5e7eb;padding:14px 16px;color:#2E5E53;font-size:18px;font-weight:900;text-align:center">${escapeHtml(item.tier || item.status || "Not measured")}</td>
+                        <td style="border-radius:0 16px 16px 0;background:#ffffff;border-right:1px solid #e5e7eb;border-top:1px solid #e5e7eb;border-bottom:1px solid #e5e7eb;padding:14px 16px;color:#6b7280;text-align:right">${escapeHtml(item.confidence || "low")} confidence</td>
                       </tr>
                     `).join("")}
                   </table>
+                  <p style="margin:10px 0 0;color:#6b7280;font-size:12px;line-height:1.5">Proprietary technical-readiness assessment. Not an official platform rating, ranking, citation probability, or visibility measurement.</p>
 
                   <h2 style="margin:28px 0 14px;color:#111827;font-size:20px">Score Breakdown</h2>
                   ${Object.entries(scoreBreakdown).map(([key, value]) => `
@@ -198,7 +225,8 @@ function buildReportEmail({ website, overallScore, grade, topImprovements, repor
                     </div>
                   `).join("")}
 
-                  <h2 style="margin:30px 0 14px;color:#111827;font-size:20px">Detailed Recommendations</h2>
+                  <h2 style="margin:30px 0 6px;color:#111827;font-size:20px">All Improvements</h2>
+                  <p style="margin:0 0 14px;color:#6b7280;font-size:13px">${recommendations.length} implementation-ready recommendations from this scan.</p>
                   ${recommendations.map((item) => `
                     <div style="border:1px solid #e5e7eb;border-radius:20px;background:#ffffff;padding:18px;margin:0 0 14px">
                       <h3 style="margin:0 0 8px;color:#111827;font-size:18px">${escapeHtml(item.title)}</h3>
@@ -217,6 +245,16 @@ function buildReportEmail({ website, overallScore, grade, topImprovements, repor
                         <p style="margin:0 0 6px;color:#374151"><strong>Company:</strong> ${escapeHtml(entities.companyName || "Not detected")}</p>
                         <p style="margin:0 0 6px;color:#374151"><strong>Email:</strong> ${escapeHtml((entities.emails || [])[0] || "Not detected")}</p>
                         <p style="margin:0;color:#374151"><strong>Phone:</strong> ${escapeHtml((entities.phones || [])[0] || "Not detected")}</p>
+                      </td>
+                    </tr>
+                  </table>
+                  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-top:24px">
+                    <tr>
+                      <td style="border-radius:22px;background:#071c15;background-image:linear-gradient(135deg,#071c15,#16382d);border:1px solid #2E5E53;padding:24px;color:#ffffff">
+                        <p style="margin:0 0 8px;color:#90ee9a;font-size:11px;font-weight:800;letter-spacing:.18em;text-transform:uppercase">Expert guidance</p>
+                        <h2 style="margin:0;color:#ffffff;font-size:23px;line-height:1.3">Talk with a ScanSiteAI expert about these fixes.</h2>
+                        <p style="margin:10px 0 0;color:#d9e1d8;font-size:14px;line-height:1.7">Review your priority recommendations and turn this audit into a focused implementation plan in a 15-minute call.</p>
+                        <a href="${consultationUrl}" style="display:inline-block;margin-top:18px;border-radius:999px;background:#9fe0a8;color:#020302;font-weight:800;text-decoration:none;padding:13px 20px">Schedule a 15-minute call →</a>
                       </td>
                     </tr>
                   </table>
@@ -239,6 +277,8 @@ function buildReportEmail({ website, overallScore, grade, topImprovements, repor
 }
 
 function buildAdminLeadEmail({ email, website, overallScore, grade, wantsCall, reportUrl, leadId, topImprovements }) {
+  const brandOrigin = reportUrl ? new URL(reportUrl).origin : "https://scansiteai.com";
+  const logoUrl = `${brandOrigin}/logo.png`;
   const text = [
     "New ScanSiteAI Lead",
     "",
@@ -262,13 +302,15 @@ function buildAdminLeadEmail({ email, website, overallScore, grade, wantsCall, r
             <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:680px;border-collapse:collapse">
               <tr>
                 <td style="border-radius:24px 24px 0 0;background:#020302;background-image:linear-gradient(135deg,#020302,#11231f 62%,#2E5E53);padding:30px;color:#ffffff">
-                  <p style="margin:0 0 10px;color:#8B9C8C;font-size:12px;font-weight:800;letter-spacing:.2em;text-transform:uppercase">New Lead</p>
+                  <img src="${escapeHtml(logoUrl)}" width="170" alt="ScanSiteAI" style="display:block;width:170px;max-width:70%;height:auto;margin:0 0 22px;border:0" />
+                  <p style="margin:0 0 10px;color:#90ee9a;font-size:12px;font-weight:800;letter-spacing:.2em;text-transform:uppercase">${wantsCall ? "Priority follow-up · Call requested" : "New report lead"}</p>
                   <h1 style="margin:0;font-size:30px;line-height:1.12;color:#ffffff">ScanSiteAI Submission</h1>
                   <p style="margin:12px 0 0;color:#d9e1d8;font-size:15px;word-break:break-word">${escapeHtml(website)}</p>
                 </td>
               </tr>
               <tr>
                 <td style="background:#f6f7f4;padding:24px 30px">
+                  ${wantsCall ? `<div style="margin:0 0 18px;border-radius:16px;background:#dff7e3;border:1px solid #9fe0a8;padding:14px 16px;color:#16382d;font-weight:800">✓ This user requested a call. Follow up soon.</div>` : ""}
                   <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
                     <tr>
                       <td style="border-radius:18px;background:#ffffff;border:1px solid #dfe5dd;padding:18px">
@@ -280,7 +322,11 @@ function buildAdminLeadEmail({ email, website, overallScore, grade, wantsCall, r
                       </td>
                     </tr>
                   </table>
-                  ${reportUrl ? `<a href="${escapeHtml(reportUrl)}" style="display:inline-block;margin-top:18px;border-radius:999px;background:#8B9C8C;color:#020302;font-weight:800;text-decoration:none;padding:13px 20px">Open Hosted Report</a>` : ""}
+                  <table role="presentation" cellspacing="0" cellpadding="0" style="margin-top:18px"><tr>
+                    <td style="padding:0 8px 8px 0"><a href="mailto:${escapeHtml(email)}" style="display:inline-block;border-radius:999px;background:#16382d;color:#ffffff;font-weight:800;text-decoration:none;padding:12px 18px">Email Lead</a></td>
+                    <td style="padding:0 8px 8px 0"><a href="${escapeHtml(website)}" style="display:inline-block;border-radius:999px;border:1px solid #2E5E53;color:#16382d;font-weight:800;text-decoration:none;padding:11px 18px">Visit Website</a></td>
+                    ${reportUrl ? `<td style="padding:0 0 8px"><a href="${escapeHtml(reportUrl)}" style="display:inline-block;border-radius:999px;background:#9fe0a8;color:#020302;font-weight:800;text-decoration:none;padding:12px 18px">Open Report</a></td>` : ""}
+                  </tr></table>
                   <h2 style="margin:26px 0 12px;color:#111827;font-size:18px">Top Improvements</h2>
                   ${topImprovements.slice(0, 5).map((item, index) => `
                     <div style="border-radius:14px;background:#ffffff;border:1px solid #e5e7eb;padding:12px 14px;margin-bottom:10px;color:#374151">

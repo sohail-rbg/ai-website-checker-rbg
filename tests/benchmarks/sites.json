@@ -1,0 +1,9 @@
+{
+  "version": "2026.07-profile-v1",
+  "cases": [
+    { "id": "strong-local", "profile": "local_business", "rawFixture": "strong-local.html", "expected": { "indexable": true, "schemaStatus": "pass", "entityIdentity": "pass", "brandConsistency": "pass", "napConsistency": "pass" } },
+    { "id": "broken-page", "profile": "publisher", "rawFixture": "broken-page.html", "expected": { "indexable": false, "soft404": true, "schemaStatus": "fail" } },
+    { "id": "rendered-only-schema", "profile": "ecommerce", "rawFixture": "raw-js-shell.html", "renderedFixture": "rendered-catalog.html", "expected": { "renderedOnlySchema": ["Product", "Offer"], "schemaConsistency": false } },
+    { "id": "template-retailer", "profile": "ecommerce", "rawFixture": "template-retailer.html", "expected": { "schemaScore": 0, "brandVisible": true, "organizationSchema": false, "genericContent": true, "placeholderTestimonials": true, "claudeTierNot": "Strong" } }
+  ]
+}

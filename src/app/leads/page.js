@@ -3,6 +3,7 @@ import { connectToDatabase } from "@/lib/db";
 import Lead from "@/models/Lead";
 import Submission from "@/models/Submission";
 import { createPageMetadata } from "../seo";
+import LeadsDataTable from "./LeadsDataTable";
 
 export const runtime = "nodejs";
 export const metadata = createPageMetadata({
@@ -13,23 +14,6 @@ export const metadata = createPageMetadata({
   index: false,
   follow: false,
 });
-
-function formatDateTime(value) {
-  const date = value ? new Date(value) : null;
-  if (!date || Number.isNaN(date.getTime())) return { date: "Not available", time: "Not available" };
-
-  return {
-    date: date.toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    }),
-    time: date.toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-    }),
-  };
-}
 
 export default async function LeadsPage({ searchParams }) {
   const params = await searchParams;
@@ -96,7 +80,13 @@ export default async function LeadsPage({ searchParams }) {
     });
 
   const entries = [...submissionEntries, ...legacyEntries]
-    .sort((a, b) => new Date(b.submittedAt || 0) - new Date(a.submittedAt || 0));
+    .sort((a, b) => new Date(b.submittedAt || 0) - new Date(a.submittedAt || 0))
+    .map((entry) => ({
+      ...entry,
+      submittedAt: entry.submittedAt ? new Date(entry.submittedAt).toISOString() : null,
+      reportHref: entry.submissionId ? `/report/${entry.leadId}?submission=${entry.submissionId}` : `/report/${entry.leadId}`,
+      searchText: `${entry.email} ${entry.website} ${entry.grade} ${entry.wantsCall ? "call" : "no call"} ${entry.emailSent ? "sent" : "pending"}`.toLowerCase(),
+    }));
 
   const callRequests = entries.filter((entry) => entry.wantsCall).length;
   const sentReports = entries.filter((entry) => entry.emailSent).length;
@@ -130,56 +120,7 @@ export default async function LeadsPage({ searchParams }) {
           ))}
         </div>
 
-        <div className="overflow-x-auto border-t border-[#8B9C8C]/15">
-          <table className="w-full min-w-[1080px] border-collapse text-left text-sm">
-            <thead className="text-[#8B9C8C]">
-              <tr>
-                <th className="py-4 pr-5 font-semibold">Email</th>
-                <th className="px-5 py-4 font-semibold">Website</th>
-                <th className="px-5 py-4 font-semibold">Date</th>
-                <th className="px-5 py-4 font-semibold">Time</th>
-                <th className="px-5 py-4 font-semibold">Score</th>
-                <th className="px-5 py-4 font-semibold">Call</th>
-                <th className="px-5 py-4 font-semibold">Email</th>
-                <th className="py-4 pl-5 text-right font-semibold">Complete Report</th>
-              </tr>
-            </thead>
-            <tbody>
-              {entries.map((entry) => {
-                const submitted = formatDateTime(entry.submittedAt);
-                const reportHref = entry.submissionId
-                  ? `/report/${entry.leadId}?submission=${entry.submissionId}`
-                  : `/report/${entry.leadId}`;
-
-                return (
-                <tr key={entry.id} className="border-t border-[#8B9C8C]/12 text-[#d9e1d8]">
-                  <td className="max-w-[260px] py-5 pr-5 font-semibold text-white">{entry.email}</td>
-                  <td className="max-w-[290px] px-5 py-5">
-                    <span className="line-clamp-2 break-all">{entry.website}</span>
-                  </td>
-                  <td className="px-5 py-5">{submitted.date}</td>
-                  <td className="px-5 py-5">{submitted.time}</td>
-                  <td className="px-5 py-5">
-                    <span className="font-semibold text-[#9fe0a8]">{entry.overallScore}</span>
-                    <span className="ml-2 text-xs text-[#8B9C8C]">Grade {entry.grade}</span>
-                  </td>
-                  <td className="px-5 py-5">{entry.wantsCall ? "Yes" : "No"}</td>
-                  <td className="px-5 py-5">{entry.emailSent ? "Sent" : "Pending"}</td>
-                  <td className="py-5 pl-5 text-right">
-                    {entry.hasReport ? (
-                      <Link className="inline-flex rounded-full border border-[#9fe0a8]/35 px-4 py-2 text-sm font-semibold text-[#9fe0a8] transition hover:bg-[#9fe0a8] hover:text-[#020302]" href={reportHref}>
-                        Complete Report
-                      </Link>
-                    ) : (
-                      <span className="text-[#d9e1d8]/45">No report</span>
-                    )}
-                  </td>
-                </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <LeadsDataTable rows={entries} />
       </section>
     </main>
   );

@@ -30,11 +30,12 @@ import {
   Target,
   TrendingUp,
   UserRound,
+  X,
   Zap,
 } from "lucide-react";
 import SiteHeader from "../SiteHeader";
 import SiteFooter from "../SiteFooter";
-import { AmBarChart, AmOverallScoreChart, AmRadarChart, AmScoreRing } from "../charts/AmCharts";
+import { AmCheckStateChart, AmOverallScoreChart, AmRadarChart } from "../charts/AmCharts";
 import styles from "../../page.module.css";
 
 const scanSteps = [
@@ -202,6 +203,7 @@ function platformTone(score) {
 }
 
 function auditTone(score) {
+  if (!Number.isFinite(score)) return { text: "text-[#d9e1d8]/65", icon: "text-[#d9e1d8]/65", bg: "bg-white/[.04]", border: "border-white/10", bar: "from-[#59635b] to-[#8B9C8C]", status: "Not measured" };
   if (score >= 80) return { text: "text-[#90ee9a]", icon: "text-[#90ee9a]", bg: "bg-[#90ee9a]/10", border: "border-[#90ee9a]/22", bar: "from-[#2E5E53] to-[#90ee9a]", status: "Strong" };
   if (score >= 45) return { text: "text-amber-300", icon: "text-amber-300", bg: "bg-amber-300/10", border: "border-amber-300/22", bar: "from-[#8B9C8C] to-amber-300", status: "Needs polish" };
   return { text: "text-rose-300", icon: "text-rose-300", bg: "bg-rose-300/10", border: "border-rose-300/22", bar: "from-rose-500 to-rose-300", status: "Needs attention" };
@@ -258,29 +260,32 @@ function readinessSummary(report, primary) {
   return `${host} is ${level} for AI discovery.${strengthText}${nextText}`;
 }
 
-function SignalRow({ type, children }) {
-  const positive = type === "positive";
-  const Icon = positive ? CheckCircle2 : CircleAlert;
-  return (
-    <div className={`flex min-h-10 items-center gap-3 rounded-xl px-3 py-2 text-sm ${positive ? "bg-black text-[#e9f7e9]" : "bg-amber-300/10 text-[#fff2bd]"}`}>
-      <Icon size={17} strokeWidth={2} className={positive ? "text-[#90ee9a]" : "text-amber-300"} aria-hidden="true" />
-      <span className="leading-5">{children}</span>
-    </div>
-  );
-}
-
 function PlatformScoresSection({ platforms, scannedLabel }) {
+  const [evidencePlatform, setEvidencePlatform] = useState(null);
+
+  useEffect(() => {
+    if (!evidencePlatform) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    const closeOnEscape = (event) => {
+      if (event.key === "Escape") setEvidencePlatform(null);
+    };
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [evidencePlatform]);
+
   return (
     <section className={`${styles.pageContainer} mx-auto px-5 py-10 sm:px-8`}>
       <div className="mb-8 flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <div className="flex items-center gap-4">
             <span className="h-9 w-1 rounded-full bg-[#90ee9a]" />
-            <h2 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">AI Platform Scores</h2>
+            <h2 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">Estimated Platform Readiness</h2>
           </div>
-          <p className="mt-3 max-w-3xl text-base leading-7 text-[#d9e1d8]/68">
-            Score overview across leading AI platforms based on website readiness and content intelligence.
-          </p>
+          <p className="mt-3 max-w-3xl text-base leading-7 text-[#d9e1d8]/68">Qualitative technical-readiness tiers based on measured crawlability, content, structured data, entity, trust, and metadata signals.</p>
         </div>
         <div className="inline-flex w-fit items-center gap-3 rounded-full border border-[#90ee9a]/25 bg-[#90ee9a]/8 px-5 py-3 text-sm font-semibold text-[#90ee9a]">
           <ShieldCheck size={22} strokeWidth={1.8} aria-hidden="true" />
@@ -291,46 +296,133 @@ function PlatformScoresSection({ platforms, scannedLabel }) {
       <div className="grid gap-5 lg:grid-cols-2 2xl:grid-cols-3">
         {platforms.map((platform) => {
           const tone = platformTone(platform.score);
-          const strengths = platform.strengths.length ? platform.strengths.slice(0, 2) : ["No major strengths detected"];
-          const weaknesses = platform.weaknesses.length ? platform.weaknesses.slice(0, 2) : ["No major gaps detected"];
+          const measuredBreakdown = (platform.breakdown || []).filter((item) => item.measured);
+          const rankedBreakdown = [...measuredBreakdown].sort((a, b) => b.score - a.score);
+          const strongestArea = rankedBreakdown[0];
+          const biggestGap = rankedBreakdown[rankedBreakdown.length - 1];
+          const priorities = [...measuredBreakdown]
+            .filter((item) => item.score < 80)
+            .sort((a, b) => a.score - b.score)
+            .slice(0, 2);
+          const coverageComplete = platform.totalSignals > 0 && platform.measuredSignals === platform.totalSignals;
 
           return (
-            <article key={platform.platform} className="relative overflow-hidden rounded-[1.7rem]  bg-black p-6 shadow-[0_22px_60px_rgba(0,0,0,.24)]">
+            <article key={platform.platform} className="relative overflow-hidden rounded-[1.7rem] bg-black p-6 shadow-[0_22px_60px_rgba(0,0,0,.24)]">
               <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#90ee9a]/28 to-transparent" />
-              <div className="mb-6 flex items-start justify-between gap-4">
+              <div className="flex items-start justify-between gap-4">
                 <div className="flex min-w-0 items-center gap-5">
                   <PlatformLogo platform={platform.platform} />
                   <div className="min-w-0">
-                    <h3 className="truncate text-xl font-semibold text-white">{platform.platform}</h3>
-                    <span className={`mt-2 inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${tone.bg} ${tone.border} ${tone.text}`}>
-                      {platform.status}
-                    </span>
+                    <h3 className="truncate text-xl font-semibold text-white">{platform.label || `${platform.platform} Technical Readiness`}</h3>
+                    <p className="mt-1 truncate text-xs text-[#d9e1d8]/55">{platform.crawler || "Platform-specific crawler"}</p>
                   </div>
                 </div>
-                <div className="relative grid size-14 shrink-0 place-items-center">
-                  <AmScoreRing score={platform.score} color={tone.color} className="absolute inset-0" />
-                  <span className={`relative text-lg font-semibold leading-none ${tone.text}`}>{platform.score}%</span>
+                <span className={`shrink-0 rounded-full border px-3 py-1 text-xs font-semibold ${tone.bg} ${tone.border} ${tone.text}`}>
+                  {platform.tier || platform.status}
+                </span>
+              </div>
+
+              <div className="mt-5 flex flex-wrap gap-2 text-xs">
+                <span className="rounded-full border border-white/10 bg-white/[.04] px-3 py-1.5 text-[#d9e1d8]/75">
+                  Coverage: <strong className="font-semibold text-white">{coverageComplete ? "Complete" : "Partial"} ({platform.measuredSignals}/{platform.totalSignals})</strong>
+                </span>
+                <span className="rounded-full border border-white/10 bg-white/[.04] px-3 py-1.5 text-[#d9e1d8]/75">
+                  Confidence: <strong className="font-semibold capitalize text-white">{platform.confidence || "low"}</strong>
+                </span>
+              </div>
+
+              <div className="mt-5 grid grid-cols-2 gap-3">
+                <div className="rounded-2xl border border-[#90ee9a]/14 bg-[#90ee9a]/[.05] p-4">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#90ee9a]/70">Strongest area</p>
+                  <p className="mt-2 text-sm font-semibold text-white">{strongestArea?.label || "Not measured"}</p>
+                  <p className="mt-1 text-xs text-[#8B9C8C]">{strongestArea ? `${strongestArea.score}/100` : "No evidence"}</p>
+                </div>
+                <div className="rounded-2xl border border-amber-300/14 bg-amber-300/[.05] p-4">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-200/70">Biggest gap</p>
+                  <p className="mt-2 text-sm font-semibold text-white">{biggestGap?.label || "Not measured"}</p>
+                  <p className="mt-1 text-xs text-[#8B9C8C]">{biggestGap ? `${biggestGap.score}/100` : "No evidence"}</p>
                 </div>
               </div>
 
-              <div className="grid gap-5">
-                <div>
-                  <p className="mb-2 text-sm text-[#d9e1d8]/78">Detected</p>
-                  <div className="grid gap-2">
-                    {strengths.map((item) => <SignalRow key={item} type="positive">{item}</SignalRow>)}
-                  </div>
-                </div>
-                <div>
-                  <p className="mb-2 text-sm text-[#d9e1d8]/78">Missing</p>
-                  <div className="grid gap-2">
-                    {weaknesses.map((item) => <SignalRow key={item}>{item}</SignalRow>)}
-                  </div>
+              <div className="mt-5">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#d9e1d8]/45">Priority actions</p>
+                <div className="mt-3 grid gap-2">
+                  {priorities.length ? priorities.map((item, index) => (
+                    <div key={item.key} className="flex items-center gap-3 text-sm text-[#d9e1d8]">
+                      <span className="grid size-6 shrink-0 place-items-center rounded-full bg-amber-300/10 text-xs font-semibold text-amber-200">{index + 1}</span>
+                      Improve {item.label.toLowerCase()}
+                    </div>
+                  )) : <p className="text-sm text-[#90ee9a]">No priority gaps detected in measured categories.</p>}
                 </div>
               </div>
+
+              <button type="button" onClick={() => setEvidencePlatform(platform)} className="mt-5 flex w-full cursor-pointer items-center justify-between border-t border-white/8 pt-4 text-left text-xs font-semibold text-[#9fe0a8] transition hover:text-[#c5f7cb]">
+                <span>View full evidence</span>
+                <ArrowRight size={16} strokeWidth={2} aria-hidden="true" />
+              </button>
             </article>
           );
         })}
       </div>
+
+      <AnimatePresence>
+        {evidencePlatform && (
+          <motion.div
+            className="fixed inset-0 z-[100] grid place-items-center bg-black/75 p-4 backdrop-blur-sm sm:p-6"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onMouseDown={(event) => { if (event.target === event.currentTarget) setEvidencePlatform(null); }}
+            role="presentation"
+          >
+            <motion.div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="platform-evidence-title"
+              initial={{ opacity: 0, y: 20, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 12, scale: 0.98 }}
+              transition={{ duration: 0.2 }}
+              className="max-h-[88vh] w-full max-w-3xl overflow-y-auto rounded-[1.7rem] border border-white/10 bg-[#050807] p-6 shadow-[0_28px_100px_rgba(0,0,0,.7)] sm:p-8"
+            >
+              <div className="flex items-start justify-between gap-5 border-b border-white/8 pb-5">
+                <div className="flex min-w-0 items-center gap-4">
+                  <PlatformLogo platform={evidencePlatform.platform} />
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#90ee9a]/70">Full evidence</p>
+                    <h3 id="platform-evidence-title" className="mt-1 truncate text-xl font-semibold text-white sm:text-2xl">{evidencePlatform.label}</h3>
+                    <p className="mt-1 text-xs text-[#8B9C8C]">{evidencePlatform.crawler}</p>
+                  </div>
+                </div>
+                <button type="button" onClick={() => setEvidencePlatform(null)} className="grid size-10 shrink-0 cursor-pointer place-items-center rounded-full border border-white/10 bg-white/[.04] text-[#d9e1d8] transition hover:bg-white/10" aria-label="Close full evidence">
+                  <X size={19} strokeWidth={2} aria-hidden="true" />
+                </button>
+              </div>
+
+              <div className="mt-6 grid gap-4 sm:grid-cols-2">
+                <div>
+                  <h4 className="text-sm font-semibold text-white">Category breakdown</h4>
+                  <div className="mt-4 grid gap-4">
+                    {(evidencePlatform.breakdown || []).map((item) => <div key={item.key}><div className="mb-1.5 flex justify-between gap-3 text-xs"><span className="text-[#d9e1d8]/72">{item.label}</span><span className="text-[#8B9C8C]">{item.measured ? item.score : "Not measured"}</span></div><div className="h-1.5 overflow-hidden rounded-full bg-white/8"><div className="h-full rounded-full bg-[#90ee9a]" style={{ width: `${item.measured ? item.score : 0}%`, opacity: item.measured ? 1 : 0.25 }} /></div></div>)}
+                  </div>
+                </div>
+                <div className="sm:border-l sm:border-white/8 sm:pl-6">
+                  <h4 className="text-sm font-semibold text-white">Signal evidence</h4>
+                  <div className="mt-4 grid gap-4">
+                    {(evidencePlatform.signals || []).map((item) => <div key={item.label} className="flex items-start gap-3 text-xs"><span className={`mt-1 size-2 shrink-0 rounded-full ${item.status === "pass" ? "bg-[#90ee9a]" : item.status === "fail" ? "bg-rose-300" : "bg-amber-300"}`} /><div><p className="text-sm text-[#d9e1d8]">{item.label}</p><p className="mt-1 leading-5 text-[#8B9C8C]">{item.evidence}</p></div></div>)}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-7 rounded-2xl border border-white/8 bg-white/[.025] p-4 text-xs leading-5 text-[#8B9C8C]">
+                Internal readiness index: {evidencePlatform.readinessIndex == null ? "Not measured" : `${evidencePlatform.readinessIndex}/100`}. Used only for ordering and tier assignment; it is not an official platform visibility score.
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <p className="mt-5 rounded-2xl border border-amber-300/18 bg-amber-300/8 p-4 text-sm leading-6 text-amber-100">Proprietary technical-readiness assessment. Not an official platform rating, ranking, citation probability, or visibility measurement.</p>
 
       <div className="mt-6 flex flex-col gap-5 rounded-[1.6rem] border border-[#8B9C8C]/16 bg-[linear-gradient(135deg,rgba(9,18,16,.92),rgba(4,8,7,.96))] p-6 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-start gap-5">
@@ -338,9 +430,9 @@ function PlatformScoresSection({ platforms, scannedLabel }) {
             <Sparkles size={28} strokeWidth={1.8} aria-hidden="true" />
           </span>
           <div>
-            <h3 className="text-lg font-semibold text-white">Improve Your AI Readiness</h3>
+            <h3 className="text-lg font-semibold text-white">Improve technical readiness</h3>
             <p className="mt-2 text-sm leading-6 text-[#d9e1d8]/68">
-              Fix the missing elements to improve visibility across AI platforms and increase content trust.
+              Fix the missing elements to improve crawlability and interpretation. Actual visibility requires query and citation tracking.
             </p>
           </div>
         </div>
@@ -351,6 +443,53 @@ function PlatformScoresSection({ platforms, scannedLabel }) {
         </a>
       </div>
     </section>
+  );
+}
+
+function ReportDataTable({ rows, columns, renderRow, getKey, searchText, minWidth = "760px", label = "entries" }) {
+  const [query, setQuery] = useState("");
+  const [pageSize, setPageSize] = useState(10);
+  const [page, setPage] = useState(1);
+  const filteredRows = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    return normalized ? rows.filter((row) => searchText(row).toLowerCase().includes(normalized)) : rows;
+  }, [query, rows, searchText]);
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const start = (currentPage - 1) * pageSize;
+  const visibleRows = filteredRows.slice(start, start + pageSize);
+
+  return (
+    <div className="overflow-hidden rounded-2xl border border-white/10 bg-black/20">
+      <div className="flex flex-col gap-3 border-b border-white/8 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <label className="flex items-center gap-2 text-xs text-[#d9e1d8]/65">
+          Show
+          <select value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1); }} className="rounded-lg border border-white/10 bg-[#050807] px-2 py-1.5 text-white outline-none">
+            {[10, 25, 50, 100].map((size) => <option key={size} value={size}>{size}</option>)}
+          </select>
+          {label}
+        </label>
+        <label className="flex items-center gap-2 text-xs text-[#d9e1d8]/65">
+          <span className="sr-only">Search table</span>
+          <input value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); }} placeholder="Search pages…" className="w-full rounded-xl border border-white/10 bg-[#050807] px-3 py-2 text-sm text-white outline-none placeholder:text-[#8B9C8C]/55 focus:border-[#90ee9a]/40 sm:w-64" />
+        </label>
+      </div>
+      <div className="max-h-[620px] overflow-auto">
+        <table className="w-full text-left text-sm" style={{ minWidth }}>
+          <thead className="sticky top-0 z-10 bg-[#0a0e0c] text-[#8B9C8C]"><tr>{columns.map((column) => <th key={column} className="p-4 font-semibold">{column}</th>)}</tr></thead>
+          <tbody>{visibleRows.map((row, index) => renderRow(row, getKey(row, start + index)))}</tbody>
+        </table>
+        {!visibleRows.length && <div className="py-12 text-center text-sm text-[#d9e1d8]/55">No matching {label} found.</div>}
+      </div>
+      <div className="flex flex-col gap-3 border-t border-white/8 p-4 text-xs text-[#d9e1d8]/60 sm:flex-row sm:items-center sm:justify-between">
+        <p>Showing {filteredRows.length ? start + 1 : 0}–{Math.min(start + pageSize, filteredRows.length)} of {filteredRows.length}</p>
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={() => setPage((value) => Math.max(1, value - 1))} disabled={currentPage === 1} className="rounded-lg border border-white/10 px-3 py-2 font-semibold text-[#d9e1d8] disabled:opacity-35">Previous</button>
+          <span>Page {currentPage} of {totalPages}</span>
+          <button type="button" onClick={() => setPage((value) => Math.min(totalPages, value + 1))} disabled={currentPage === totalPages} className="rounded-lg border border-white/10 px-3 py-2 font-semibold text-[#d9e1d8] disabled:opacity-35">Next</button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -433,6 +572,15 @@ export function Dashboard({ report, onReset }) {
     }));
   }, [report]);
   const radar = breakdown.filter((item) => ["Metadata", "Schema", "Content", "EEAT", "Entities", "Robots", "Performance"].includes(item.name));
+  const checkStateData = useMemo(() => {
+    const summary = report.siteAudit?.diagnostics?.summary || {};
+    return [
+      { state: "Passed", value: Number(summary.pass) || 0, color: 0x90ee9a },
+      { state: "Warnings", value: Number(summary.warning) || 0, color: 0xfacc15 },
+      { state: "Failed", value: Number(summary.fail) || 0, color: 0xfb7185 },
+      { state: "Not measured", value: Number(summary.notMeasured) || 0, color: 0x8b9c8c },
+    ];
+  }, [report.siteAudit]);
   const visibleRecommendations = report.recommendations.slice(0, 1);
   const primaryRecommendation = visibleRecommendations[0];
   const hiddenCount = Math.max(report.recommendations.length - 1, 0);
@@ -456,7 +604,7 @@ export function Dashboard({ report, onReset }) {
   const keyStrengths = [
     {
       icon: Target,
-      label: platformLeaders[0] ? `${platformLeaders[0].platform} visibility signals` : "Strong visibility signals",
+      label: platformLeaders[0] ? `${platformLeaders[0].platform} readiness signals` : "Strong readiness signals",
     },
     {
       icon: ShieldCheck,
@@ -573,22 +721,13 @@ export function Dashboard({ report, onReset }) {
                       className="size-full object-cover"
                       onError={() => setFailedPreviewUrl(previewImage)}
                     />
-                  ) : scannedUrl ? (
-                    <iframe
-                      src={scannedUrl}
-                      title={`${scannedHost || "Scanned website"} live preview`}
-                      loading="lazy"
-                      sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
-                      className="size-full border-0 bg-white"
-                    />
                   ) : (
                     <div className="grid size-full place-items-center p-8 text-center">
                       <div>
                         <Globe2 className="mx-auto text-[#90ee9a]" size={42} strokeWidth={1.7} aria-hidden="true" />
                         <p className="mt-4 text-sm font-semibold text-white">Preview unavailable</p>
-                        <p className="mt-2 text-sm leading-6 text-[#d9e1d8]/62">
-                          The site blocked browser capture, but the technical scan still completed.
-                        </p>
+                        <p className="mt-2 text-sm leading-6 text-[#d9e1d8]/62">{report.preview?.error || "The site blocked browser capture, but the technical scan still completed."}</p>
+                        <p className="mt-2 text-xs text-[#8B9C8C]">Preview status does not affect readiness scoring.</p>
                       </div>
                     </div>
                   )}
@@ -703,13 +842,19 @@ export function Dashboard({ report, onReset }) {
 
       <PlatformScoresSection platforms={report.platformScores} scannedLabel={scannedLabel} />
 
-      <Section title="Score Breakdown">
+      <EntityConsistencySection analysis={report.siteAudit?.entityAnalysis} />
+
+      <ScanReliabilitySection audit={report.siteAudit} verification={report.externalVerification} calibration={report.scoringCalibration} preview={report.preview} />
+
+      <Section title="Readiness and action priorities">
         <div className="grid gap-5 lg:grid-cols-2">
-          <Card className="h-80 sm:h-96">
-            <AmRadarChart data={radar} />
+          <Card className="h-[26rem] p-5 sm:h-[30rem]">
+            <div><h3 className="text-lg font-semibold text-white">Current readiness</h3><p className="mt-1 text-xs text-[#8B9C8C]">Current health across measured audit categories.</p></div>
+            <div className="h-[calc(100%-3.5rem)]"><AmRadarChart data={radar} /></div>
           </Card>
-          <Card className="h-80 sm:h-96">
-            <AmBarChart data={breakdown} />
+          <Card className="h-[26rem] p-5 sm:h-[30rem]">
+            <div><h3 className="text-lg font-semibold text-white">Scan result statistics</h3><p className="mt-1 text-xs text-[#8B9C8C]">Distribution of every measured check by outcome.</p></div>
+            <div className="h-[calc(100%-3.5rem)]"><AmCheckStateChart data={checkStateData} /></div>
           </Card>
         </div>
       </Section>
@@ -726,6 +871,115 @@ export function Dashboard({ report, onReset }) {
       <ContentOpportunitiesSection opportunities={report.contentOpportunities} />
 
     </motion.div>
+  );
+}
+
+function SiteCoverageSection({ audit, profile }) {
+  if (!audit?.pages?.length) return null;
+  const categories = Object.entries(audit.categoryScores || {});
+  const profileLabel = String(profile?.value || "auto").replaceAll("_", " ");
+  return (
+    <Section title="Site-wide scan coverage">
+      <div className="mb-5 flex flex-wrap gap-3 text-sm">
+        <span className="rounded-full border border-[#90ee9a]/20 bg-[#90ee9a]/8 px-4 py-2 text-[#9fe0a8]">Profile: {profileLabel} ({profile?.source || "detected"})</span>
+        <span className="rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-[#d9e1d8]">{audit.coverage.scanned} pages scanned</span>
+        <span className="rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-[#d9e1d8]">{audit.coverage.rendered} rendered</span>
+        <span className="rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-[#d9e1d8]">JS-dependent content: {audit.rendering.averageJsDependentPercent ?? "Not measured"}{audit.rendering.averageJsDependentPercent != null ? "%" : ""}</span>
+      </div>
+      <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {categories.map(([key, value]) => (
+          <Card key={key} className="p-5">
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#8B9C8C]">{formatScoreLabel(key)}</p>
+            <p className="mt-3 text-3xl font-semibold text-white">{value.measured ? value.score : "Not measured"}</p>
+          </Card>
+        ))}
+      </div>
+      <ReportDataTable
+        rows={audit.pages}
+        columns={["Page", "Type", "Status", "Raw words", "JS dependent", "Schema", "Issues"]}
+        getKey={(page) => page.requestedUrl || page.url}
+        searchText={(page) => `${page.url} ${page.role} ${page.status ?? "unknown"}`}
+        renderRow={(page, key) => (
+              <tr key={key} className="border-t border-white/8 text-[#d9e1d8]">
+                <td className="max-w-[260px] truncate p-4"><a href={page.url} target="_blank" rel="noreferrer" className="text-[#9fe0a8] hover:underline">{page.url}</a></td>
+                <td className="p-4 capitalize">{page.role}</td><td className="p-4">{page.status ?? "Unknown"}</td><td className="p-4">{page.raw?.wordCount ?? 0}</td>
+                <td className="p-4">{page.rendered?.jsDependentPercent == null ? "Not measured" : `${page.rendered.jsDependentPercent}%`}</td>
+                <td className="p-4">{page.schema?.score ?? 0}</td><td className="p-4">{(page.findings || []).filter((item) => item.status !== "pass").length}</td>
+              </tr>
+        )}
+      />
+    </Section>
+  );
+}
+
+function MetadataQualitySection({ audit }) {
+  const analysis = audit?.metadataAnalysis;
+  if (!analysis) return null;
+  return (
+    <Section title="SEO metadata quality">
+      <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Card className="p-5"><p className="text-xs uppercase tracking-[0.16em] text-[#8B9C8C]">Quality score</p><p className="mt-3 text-3xl font-semibold text-white">{analysis.score}</p></Card>
+        <Card className="p-5"><p className="text-xs uppercase tracking-[0.16em] text-[#8B9C8C]">Unique titles</p><p className="mt-3 text-3xl font-semibold text-white">{analysis.pagesWithUniqueTitles}/{analysis.pagesChecked}</p></Card>
+        <Card className="p-5"><p className="text-xs uppercase tracking-[0.16em] text-[#8B9C8C]">Unique descriptions</p><p className="mt-3 text-3xl font-semibold text-white">{analysis.pagesWithUniqueDescriptions}/{analysis.pagesChecked}</p></Card>
+        <Card className="p-5"><p className="text-xs uppercase tracking-[0.16em] text-[#8B9C8C]">Duplicate groups</p><p className="mt-3 text-3xl font-semibold text-white">{analysis.duplicateTitles.length + analysis.duplicateDescriptions.length}</p></Card>
+      </div>
+      <ReportDataTable
+        rows={audit.pages}
+        columns={["Page", "Title", "Title size", "H1 alignment", "Description size", "Relevance", "Unique"]}
+        minWidth="900px"
+        getKey={(page) => page.url}
+        searchText={(page) => `${page.url} ${page.title || "missing"} ${page.description || ""}`}
+        renderRow={(page, key) => <tr key={key} className="border-t border-white/8 text-[#d9e1d8]"><td className="max-w-[220px] truncate p-4">{page.url}</td><td className="max-w-[260px] truncate p-4">{page.title || "Missing"}</td><td className="p-4">{page.metadataQuality?.title.length ?? 0} chars / {page.metadataQuality?.title.estimatedPixels ?? 0}px</td><td className="p-4">{page.metadataQuality?.title.h1AlignmentPercent ?? "N/A"}%</td><td className="p-4">{page.metadataQuality?.description.length ?? 0} chars / {page.metadataQuality?.description.estimatedPixels ?? 0}px</td><td className="p-4">{page.metadataQuality?.description.relevancePercent ?? "N/A"}%</td><td className="p-4">{page.metadataQuality?.uniqueness?.pageSpecific ? "Yes" : "No"}</td></tr>}
+      />
+      <p className="mt-4 text-xs leading-5 text-[#8B9C8C]">Pixel widths are deterministic estimates for auditing, not exact Google rendering measurements. Search engines may rewrite snippets.</p>
+    </Section>
+  );
+}
+
+function EntityConsistencySection({ analysis }) {
+  if (!analysis) return null;
+  const checks = [
+    ["Entity Identity", analysis.entityIdentity, (item) => `Detected name: ${item.detectedName || "Not found"} · Organization pages: ${item.pagesWithOrganization}/${item.pagesChecked}`],
+    ["Entity Connections", analysis.entityConnections, (item) => `${item.relationships?.length || 0} relationships · ${item.unresolvedRelationships?.length || 0} unresolved · ${item.externalProfiles?.length || 0} external profiles`],
+    ["Brand Name Consistency", analysis.brandNameConsistency, (item) => item.variants?.length ? `Primary: ${item.primaryName || "Unknown"} · Variants: ${item.variants.map((variant) => variant.value).join(", ")}` : "No reliable brand-name signals detected"],
+    ["NAP Consistency", analysis.napConsistency, (item) => item.applicable ? `${item.names?.length || 0} names · ${item.addresses?.length || 0} addresses · ${item.phones?.length || 0} phone numbers · ${item.conflicts?.length || 0} conflicts` : item.note],
+  ];
+  const statusTone = { pass: "text-[#90ee9a] border-[#90ee9a]/25 bg-[#90ee9a]/8", warning: "text-amber-200 border-amber-300/25 bg-amber-300/8", fail: "text-rose-200 border-rose-300/25 bg-rose-300/8", not_applicable: "text-[#d9e1d8] border-white/10 bg-white/[0.03]" };
+  return (
+    <Section title="Entity consistency">
+      <p className="mb-6 max-w-3xl text-sm leading-6 text-[#d9e1d8]/68">Cross-page comparison of who the organization is, how its entities connect, and whether brand and local-business details agree.</p>
+      <div className="grid gap-4 md:grid-cols-2">
+        {checks.map(([title, item, detail]) => (
+          <Card key={title} className="p-6">
+            <div className="flex items-start justify-between gap-4">
+              <div><h3 className="text-lg font-semibold text-white">{title}</h3><p className="mt-3 text-sm leading-6 text-[#d9e1d8]/68">{detail(item)}</p></div>
+              <span className={`shrink-0 rounded-full border px-3 py-1 text-xs font-bold uppercase tracking-[0.12em] ${statusTone[item.status] || statusTone.not_applicable}`}>{item.status.replaceAll("_", " ")}</span>
+            </div>
+            <div className="mt-5 flex items-end justify-between border-t border-white/8 pt-4"><span className="text-xs uppercase tracking-[0.16em] text-[#8B9C8C]">Score</span><strong className="text-3xl text-white">{item.score == null ? "N/A" : item.score}</strong></div>
+          </Card>
+        ))}
+      </div>
+    </Section>
+  );
+}
+
+function ScanReliabilitySection({ audit, verification, calibration, preview }) {
+  if (!audit?.diagnostics) return null;
+  const summary = audit.diagnostics.summary;
+  const schemaPages = audit.pages.filter((page) => page.schemaComparison?.measured);
+  return (
+    <Section title="Scan evidence and reliability">
+      <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Card className="p-5"><p className="text-xs uppercase tracking-[0.16em] text-[#8B9C8C]">Scan confidence</p><p className="mt-3 text-3xl font-semibold capitalize text-white">{audit.confidence.level}</p><p className="mt-2 text-xs text-[#d9e1d8]/60">{audit.confidence.score}/100 coverage confidence</p></Card>
+        <Card className="p-5"><p className="text-xs uppercase tracking-[0.16em] text-[#8B9C8C]">Check states</p><p className="mt-3 text-sm leading-6 text-[#d9e1d8]">{summary.pass} pass · {summary.warning} warning · {summary.fail} fail · {summary.notMeasured} not measured</p></Card>
+        <Card className="p-5"><p className="text-xs uppercase tracking-[0.16em] text-[#8B9C8C]">Schema comparison</p><p className="mt-3 text-sm leading-6 text-[#d9e1d8]">{schemaPages.length} pages compared · {schemaPages.filter((page) => page.schemaComparison.addedAfterJavaScript.length).length} with rendered-only schema</p></Card>
+        <Card className="p-5"><p className="text-xs uppercase tracking-[0.16em] text-[#8B9C8C]">Preview</p><p className="mt-3 text-sm capitalize text-[#d9e1d8]">{preview?.status || (preview?.image ? "captured" : "unavailable")}</p><p className="mt-2 text-xs text-[#d9e1d8]/60">{preview?.attempts?.length || 0} capture attempts; never affects score</p></Card>
+      </div>
+      <div className="grid gap-5 lg:grid-cols-2">
+        <Card className="p-6"><h3 className="text-lg font-semibold text-white">Coverage evidence</h3><ul className="mt-4 grid gap-2 text-sm text-[#d9e1d8]/70">{audit.confidence.reasons.map((reason) => <li key={reason}>• {reason}</li>)}</ul><p className="mt-4 text-xs text-[#8B9C8C]">Scanner {audit.diagnostics.scannerVersion} · {audit.diagnostics.durationMs}ms · calibration {calibration?.version || "unversioned"}</p></Card>
+        <Card className="p-6"><div className="flex items-center justify-between gap-3"><h3 className="text-lg font-semibold text-white">External verification</h3><span className="rounded-full border border-white/10 bg-white/[.04] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#d9e1d8]/60">Optional</span></div><div className="mt-4 grid gap-3">{(verification?.results || []).map((item) => <div key={item.provider} className="flex items-center justify-between gap-4 border-b border-white/8 pb-3 text-sm"><span className="text-[#d9e1d8]">{item.provider}</span><span className={`capitalize ${item.status === "not_configured" ? "text-[#d9e1d8]/55" : "text-[#9fe0a8]"}`}>{item.status.replaceAll("_", " ")}</span></div>)}</div><p className="mt-4 text-xs text-[#8B9C8C]">Optional integrations do not reduce readiness scores when they are not configured.</p></Card>
+      </div>
+    </Section>
   );
 }
 
@@ -827,6 +1081,14 @@ function TopImprovementsSection({ report, visibleRecommendations, hiddenCount })
                 </div>
               </div>
               <p className="mt-5 max-w-4xl text-base leading-8 text-[#d9e1d8]/78">{primary.description}</p>
+              {(primary.affectedUrl || primary.evidence) && (
+                <div className="mt-4 rounded-xl border border-white/10 bg-black/25 p-4 text-sm leading-6 text-[#d9e1d8]/72">
+                  {primary.affectedUrl && <p><strong className="text-white">Affected URL:</strong> {primary.affectedUrl}</p>}
+                  {primary.affectedElement && <p><strong className="text-white">Element:</strong> <code>{primary.affectedElement}</code></p>}
+                  {primary.evidence && <p><strong className="text-white">Evidence:</strong> {primary.evidence}</p>}
+                  {primary.confidence && <p><strong className="text-white">Confidence:</strong> {primary.confidence}</p>}
+                </div>
+              )}
 
               <div className="mt-6 grid gap-5 border-t border-[#8B9C8C]/12 pt-6 md:grid-cols-3">
                 <ImprovementInfo icon={CircleAlert} tone="rose" label="Current Status" value={primary.currentStatus} />
@@ -956,19 +1218,31 @@ function ImprovementInfo({ icon: Icon, tone, label, value }) {
 
 function TechnicalAuditSection({ report }) {
   const checks = Object.entries(report.checklist || {});
-  const passed = checks.filter(([, value]) => value).length;
-  const attention = checks.length - passed;
+  const passed = checks.filter(([, value]) => value === true).length;
+  const attention = checks.filter(([, value]) => value === false).length;
+  const notMeasured = checks.filter(([, value]) => value == null).length;
   const eeatSignals = report.eeat.signals || {};
   const serviceNames = (report.entities.services || []).slice(0, 2);
   const productNames = (report.entities.products || []).slice(0, 2);
+  const schemaGaps = [...new Set((report.siteAudit?.pages || []).flatMap((page) => (page.schema?.issues || []).flatMap((issue) => [
+    ...(issue.missingRequired || []).map((property) => `${issue.type}.${property} (required)`),
+    ...(issue.missingRecommended || []).map((property) => `${issue.type}.${property}`),
+  ])))];
+  const measuredSchemaPages = (report.siteAudit?.pages || []).filter((page) => Number.isFinite(page.schema?.score));
+  const schemaAuditScore = measuredSchemaPages.length
+    ? Math.round(measuredSchemaPages.reduce((sum, page) => sum + page.schema.score, 0) / measuredSchemaPages.length)
+    : report.schema.score;
+  const entityAuditScore = report.siteAudit?.categoryScores?.entityConfidence?.measured
+    ? report.siteAudit.categoryScores.entityConfidence.score
+    : report.entities.score;
   const auditCards = [
     {
       icon: Database,
       title: "Schema Audit",
-      score: report.schema.score,
+      score: schemaAuditScore,
       lines: [
         `Present: ${report.schema.present.join(", ") || "None detected"}`,
-        `Missing: ${report.schema.missing.slice(0, 4).join(", ") || "No major gaps"}`,
+        `Relevant property gaps: ${schemaGaps.slice(0, 4).join(", ") || "None detected"}`,
         `Invalid blocks: ${report.schema.invalid.length}`,
       ],
     },
@@ -1007,7 +1281,7 @@ function TechnicalAuditSection({ report }) {
     {
       icon: UserRound,
       title: "Entity Analysis",
-      score: report.entities.score,
+      score: entityAuditScore,
       lines: [
         `Company: ${report.entities.companyName || "Not detected"}`,
         `Email: ${report.entities.emails[0] || "Not detected"}`,
@@ -1048,6 +1322,7 @@ function TechnicalAuditSection({ report }) {
             <CircleAlert size={17} strokeWidth={2} aria-hidden="true" />
             {attention} need attention
           </span>
+          {notMeasured > 0 && <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[.04] px-4 py-2 text-sm font-semibold text-[#d9e1d8]/65">{notMeasured} not measured</span>}
         </div>
       </div>
 
@@ -1055,24 +1330,37 @@ function TechnicalAuditSection({ report }) {
         <div className="pointer-events-none absolute inset-0 opacity-25 [background-image:radial-gradient(circle_at_center,rgba(144,238,154,.13)_1px,transparent_1.5px)] [background-size:20px_20px] [mask-image:linear-gradient(90deg,black,transparent_70%)]" />
         <div className="relative grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           {checks.map(([key, value]) => (
+            (() => {
+              const measured = value != null;
+              const passedCheck = value === true;
+              const cardTone = !measured
+                ? "border-white/10 bg-white/[.035]"
+                : passedCheck
+                  ? "border-[#90ee9a]/18 bg-[#90ee9a]/7 hover:border-[#90ee9a]/36"
+                  : "border-rose-300/18 bg-rose-300/7 hover:border-rose-300/34";
+              const iconTone = !measured
+                ? "border-white/12 bg-white/[.05] text-[#d9e1d8]/60"
+                : passedCheck
+                  ? "border-[#90ee9a]/32 bg-[#90ee9a]/10 text-[#90ee9a]"
+                  : "border-rose-300/32 bg-rose-300/10 text-rose-200";
+              const labelTone = !measured ? "text-[#d9e1d8]/55" : passedCheck ? "text-[#90ee9a]" : "text-rose-200";
+              return (
             <article
               key={key}
-              className={`group flex min-h-24 items-center gap-4 rounded-2xl border p-4 transition hover:-translate-y-0.5 ${
-                value
-                  ? "border-[#90ee9a]/18 bg-[#90ee9a]/7 hover:border-[#90ee9a]/36"
-                  : "border-rose-300/18 bg-rose-300/7 hover:border-rose-300/34"
-              }`}
+              className={`group flex min-h-24 items-center gap-4 rounded-2xl border p-4 transition hover:-translate-y-0.5 ${cardTone}`}
             >
-              <span className={`grid size-11 shrink-0 place-items-center rounded-full border ${value ? "border-[#90ee9a]/32 bg-[#90ee9a]/10 text-[#90ee9a]" : "border-rose-300/32 bg-rose-300/10 text-rose-200"}`}>
-                {value ? <CheckCircle2 size={23} strokeWidth={1.9} aria-hidden="true" /> : <CircleAlert size={23} strokeWidth={1.9} aria-hidden="true" />}
+              <span className={`grid size-11 shrink-0 place-items-center rounded-full border ${iconTone}`}>
+                {passedCheck ? <CheckCircle2 size={23} strokeWidth={1.9} aria-hidden="true" /> : <CircleAlert size={23} strokeWidth={1.9} aria-hidden="true" />}
               </span>
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-white">{formatScoreLabel(key)}</p>
-                <p className={`mt-1 text-xs font-semibold uppercase tracking-[0.16em] ${value ? "text-[#90ee9a]" : "text-rose-200"}`}>
-                  {value ? "Ready" : "Review"}
+                <p className={`mt-1 text-xs font-semibold uppercase tracking-[0.16em] ${labelTone}`}>
+                  {!measured ? "Not measured" : passedCheck ? "Ready" : "Review"}
                 </p>
               </div>
             </article>
+              );
+            })()
           ))}
         </div>
 
@@ -1119,16 +1407,16 @@ function AuditCard({ title, score, lines, icon: Icon = FileText }) {
           </div>
         </div>
         <div className="text-right">
-          <span className={`text-4xl font-semibold leading-none ${tone.text}`}>{score}</span>
-          <span className="ml-1 text-sm text-[#d9e1d8]/55">/100</span>
+          <span className={`text-4xl font-semibold leading-none ${tone.text}`}>{Number.isFinite(score) ? score : "N/A"}</span>
+          {Number.isFinite(score) && <span className="ml-1 text-sm text-[#d9e1d8]/55">/100</span>}
         </div>
       </div>
       <div className="mt-5 space-y-2 text-sm text-[#d9e1d8]/70">
         {lines.length ? lines.map((line) => <p key={line} className="[overflow-wrap:anywhere]">{line}</p>) : <p>No positive signals detected.</p>}
       </div>
-      <div className="mt-5 h-1.5 overflow-hidden rounded-full bg-[#8B9C8C]/12">
-        <div className={`h-full rounded-full bg-gradient-to-r ${tone.bar}`} style={{ width: `${Math.max(4, Math.min(100, Number(score) || 0))}%` }} />
-      </div>
+      {Number.isFinite(score) && <div className="mt-5 h-1.5 overflow-hidden rounded-full bg-[#8B9C8C]/12">
+        <div className={`h-full rounded-full bg-gradient-to-r ${tone.bar}`} style={{ width: `${Math.max(4, Math.min(100, score))}%` }} />
+      </div>}
     </article>
   );
 }
@@ -1148,7 +1436,7 @@ function compactReportForEmail(report) {
 }
 
 function EmailCapture({ report, compact = false, title = "Want a detailed AI Readiness Report?", description, buttonLabel, bare = false, showCallOption = true }) {
-  const [reportUrl, setReportUrl] = useState("");
+  const [confirmation, setConfirmation] = useState(null);
   const { register, handleSubmit, formState: { errors, isSubmitting }, reset } = useForm();
 
   async function onSubmit(values) {
@@ -1162,7 +1450,7 @@ function EmailCapture({ report, compact = false, title = "Want a detailed AI Rea
           overallScore: report.overallScore,
           grade: report.grade,
           topImprovements: report.recommendations.slice(0, 5).map((item) => item.title),
-          platformScores: Object.fromEntries(report.platformScores.map((item) => [item.platform, item.score])),
+          platformScores: Object.fromEntries(report.platformScores.map((item) => [item.platform, item.tier || "Not measured"])),
           wantsCall: Boolean(values.wantsCall),
           report: compactReportForEmail(report),
         }),
@@ -1170,7 +1458,7 @@ function EmailCapture({ report, compact = false, title = "Want a detailed AI Rea
       const data = await readApiResponse(response, "Could not send report. Please try again.");
       if (!response.ok) throw new Error(data.error || "Could not send report.");
       localStorage.setItem("scanSiteAIEmail", values.email);
-      if (data.reportUrl) setReportUrl(data.reportUrl);
+      setConfirmation({ email: values.email, wantsCall: Boolean(values.wantsCall), emailSent: (data.delivery?.userSent ?? data.emailSent) !== false });
       if (data.emailSent === false) {
         toast.error(data.message || "Lead saved, but email delivery needs SMTP configuration.");
       } else {
@@ -1180,6 +1468,25 @@ function EmailCapture({ report, compact = false, title = "Want a detailed AI Rea
     } catch (error) {
       toast.error(error?.message || "Could not save this lead right now.");
     }
+  }
+
+  if (confirmation) {
+    const confirmationPanel = (
+      <div className={`${bare ? "" : compact ? styles.compactCapture : styles.reportCapture} rounded-2xl border border-[#90ee9a]/22 bg-[#90ee9a]/[.07] p-5`} role="status" aria-live="polite">
+        <div className="flex items-start gap-4">
+          <span className="grid size-11 shrink-0 place-items-center rounded-full border border-[#90ee9a]/30 bg-[#90ee9a]/10 text-[#90ee9a]"><CheckCircle2 size={23} strokeWidth={2} aria-hidden="true" /></span>
+          <div>
+            <h3 className="text-lg font-semibold text-white">Thank you!</h3>
+            <p className="mt-2 text-sm leading-6 text-[#d9e1d8]/75">
+              {confirmation.emailSent ? <>Your complete report has been sent to <strong className="font-semibold text-white">{confirmation.email}</strong>.</> : <>Your request was saved, but email delivery is temporarily unavailable. Our team can still review your submission.</>}
+            </p>
+            {confirmation.wantsCall && <p className="mt-3 rounded-xl border border-[#90ee9a]/16 bg-black/20 p-3 text-sm font-medium leading-6 text-[#9fe0a8]">Your call request was received. Our team will contact you soon.</p>}
+          </div>
+        </div>
+      </div>
+    );
+    if (compact) return confirmationPanel;
+    return <Section title={title}>{confirmationPanel}</Section>;
   }
 
   const form = (
@@ -1195,7 +1502,7 @@ function EmailCapture({ report, compact = false, title = "Want a detailed AI Rea
             />
             {errors.email && <p className="mt-2 text-sm text-rose-300">{errors.email.message}</p>}
           </div>
-          <button disabled={isSubmitting} className="h-14 rounded-2xl bg-[#9fe0a8] px-6 font-semibold text-[#020302] shadow-[0_0_32px_rgba(159,224,168,.18)] transition hover:bg-[#b8f4bf] disabled:opacity-60">
+          <button disabled={isSubmitting} className="h-14 cursor-pointer rounded-2xl bg-[#9fe0a8] px-6 font-semibold text-[#020302] shadow-[0_0_32px_rgba(159,224,168,.18)] transition hover:bg-[#b8f4bf] disabled:cursor-not-allowed disabled:opacity-60">
             {isSubmitting ? "Sending..." : buttonLabel || (compact ? "Unlock Report" : "Send My Report")}
           </button>
         </div>
@@ -1204,11 +1511,6 @@ function EmailCapture({ report, compact = false, title = "Want a detailed AI Rea
             <input type="checkbox" {...register("wantsCall")} className="mt-1 size-4 accent-[#8B9C8C]" />
             <span>Schedule a call with us to review the AI readiness fixes.</span>
           </label>
-        )}
-        {reportUrl && (
-          <a className="rounded-2xl border border-[#8B9C8C]/20 bg-[#8B9C8C]/10 p-3 text-sm font-semibold text-[#d9e1d8]" href={reportUrl} target="_blank" rel="noreferrer">
-            Open hosted report
-          </a>
         )}
       </form>
     </div>
@@ -1266,7 +1568,7 @@ export default function Home() {
   const [isScanning, setIsScanning] = useState(false);
   const [step, setStep] = useState(0);
   const router = useRouter();
-  const { register, handleSubmit, formState: { errors } } = useForm({ defaultValues: { url: "" } });
+  const { register, handleSubmit, formState: { errors } } = useForm({ defaultValues: { url: "", profile: "auto" } });
 
   useEffect(() => {
     router.prefetch("/scan-report");
@@ -1284,7 +1586,7 @@ export default function Home() {
       const response = await fetch("/api/scan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: values.url, email: storedEmail, location: approxLocation }),
+        body: JSON.stringify({ url: values.url, profile: values.profile, email: storedEmail, location: approxLocation }),
       });
       const data = await readApiResponse(response, "The live server returned an invalid scan response. Please try again.");
       if (!response.ok) throw new Error(data.error || "Scan failed.");
@@ -1360,6 +1662,13 @@ export default function Home() {
             <ArrowRight size={22} strokeWidth={2.2} aria-hidden="true" />
             {isScanning ? "Analyzing..." : "Analyze Website"}
           </button>
+          <label className="flex flex-col items-stretch gap-2 px-3 pb-1 text-left text-sm text-[#d9e1d8]/72 sm:col-span-2 sm:flex-row sm:items-center sm:gap-3">
+            <span className="shrink-0">Website profile</span>
+            <select {...register("profile")} className="w-full min-w-0 flex-1 rounded-xl border border-white/10 bg-[#07100e] px-3 py-2 text-white outline-none focus:border-[#90ee9a]/50 sm:w-auto">
+              <option value="auto">Detect automatically</option><option value="local_business">Local business</option><option value="saas">SaaS</option>
+              <option value="ecommerce">Ecommerce</option><option value="publisher">Publisher / blog</option><option value="agency">Agency / services</option><option value="api">API / developer product</option>
+            </select>
+          </label>
         </motion.form>
 
         <motion.div

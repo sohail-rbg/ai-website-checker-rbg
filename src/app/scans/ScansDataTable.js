@@ -97,9 +97,9 @@ export default function ScansDataTable({ rows }) {
         </label>
       </div>
 
-      <div className="overflow-x-auto border-t border-[#8B9C8C]/15">
+      <div className="max-h-[680px] overflow-auto border-t border-[#8B9C8C]/15">
         <table className="w-full min-w-[1850px] border-collapse text-left text-sm">
-          <thead className="text-[#8B9C8C]">
+          <thead className="sticky top-0 z-10 bg-[#080b09] text-[#8B9C8C]">
             <tr>
               {columns.map((column) => (
                 <th key={column.key} className="px-5 py-4 first:pl-0 last:pr-0">

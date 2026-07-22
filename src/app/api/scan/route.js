@@ -117,13 +117,13 @@ export async function POST(request) {
 
     // Load the scanner inside the handler so live import/runtime failures still return JSON.
     const { scanWebsite } = await import("@/lib/scanner");
-    const report = await scanWebsite(body?.url);
+    const report = await scanWebsite(body?.url, { profile: body?.profile });
     const scanRecord = await saveScanRecord(request, report, body);
     if (scanRecord) report.scanId = String(scanRecord._id);
     return Response.json({ report, scanId: scanRecord ? String(scanRecord._id) : null });
   } catch (error) {
     const message = error?.message || "We could not scan this website. Please try again.";
-    const isUserFixable = /(invalid|please enter|website url|offline|timeout|timed out|taking too long|too long to respond|blocked|ssl|private|localhost|unable to reach|could not reach)/i.test(message);
+    const isUserFixable = /(invalid|please enter|website url|offline|timeout|timed out|taking too long|too long to respond|blocked|ssl|tls|dns|scan incomplete|private|localhost|unable to reach|could not reach)/i.test(message);
     if (isUserFixable) {
       console.warn("Scan request rejected", message);
     } else {

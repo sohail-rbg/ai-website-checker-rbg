@@ -1,15 +1,24 @@
 export const SCORE_WEIGHTS = {
   metadata: 10,
-  schema: 20,
+  schema: 15,
   performance: 10,
-  content: 15,
-  eeat: 15,
+  content: 10,
+  eeat: 10,
   entities: 10,
   robots: 10,
   sitemap: 5,
   links: 5,
   images: 5,
-  readability: 5,
+  readability: 10,
+};
+
+export const PROFILE_WEIGHTS = {
+  local_business: { crawlability: 20, technicalSeo: 18, contentReadiness: 15, entityConfidence: 22, performance: 10, accessibility: 5, agentReadiness: 10 },
+  saas: { crawlability: 18, technicalSeo: 18, contentReadiness: 18, entityConfidence: 14, performance: 12, accessibility: 6, agentReadiness: 14 },
+  ecommerce: { crawlability: 18, technicalSeo: 20, contentReadiness: 14, entityConfidence: 14, performance: 14, accessibility: 6, agentReadiness: 14 },
+  publisher: { crawlability: 20, technicalSeo: 18, contentReadiness: 24, entityConfidence: 14, performance: 10, accessibility: 6, agentReadiness: 8 },
+  agency: { crawlability: 18, technicalSeo: 18, contentReadiness: 20, entityConfidence: 20, performance: 10, accessibility: 6, agentReadiness: 8 },
+  api: { crawlability: 16, technicalSeo: 14, contentReadiness: 18, entityConfidence: 10, performance: 10, accessibility: 6, agentReadiness: 26 },
 };
 
 export function clampScore(value) {
@@ -31,6 +40,12 @@ export function weightedAverageScore(scores, weights = SCORE_WEIGHTS) {
   }, 0);
 
   return clampScore((points / totalWeight) * 100);
+}
+
+export function profileAwareScore(categoryScores, profile = "saas") {
+  const weights = PROFILE_WEIGHTS[profile] || PROFILE_WEIGHTS.saas;
+  const measuredWeights = Object.fromEntries(Object.entries(weights).filter(([key]) => Number.isFinite(categoryScores[key])));
+  return weightedAverageScore(categoryScores, measuredWeights);
 }
 
 export function gradeFor(score) {

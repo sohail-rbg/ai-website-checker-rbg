@@ -10,6 +10,7 @@ import { connectToDatabase } from "@/lib/db";
 import Lead from "@/models/Lead";
 import Submission from "@/models/Submission";
 import PrintButton from "./PrintButton";
+import { ChecksDataTable, PlatformReadinessCards, RecommendationsExplorer, ReportAuditTables, ReportNavigator } from "./ReportExperience";
 import styles from "./report.module.css";
 
 export const runtime = "nodejs";
@@ -59,18 +60,49 @@ function getScoreTone(score) {
 
 function PlatformCard({ item }) {
   const tone = getScoreTone(item.score);
+  const breakdown = Array.isArray(item.breakdown) ? item.breakdown : [];
+  const measuredWeight = breakdown.filter((part) => part.measured).reduce((sum, part) => sum + (Number(part.weight) || 0), 0);
+  const guidance = {
+    crawlability: "Allow the relevant crawler, keep important pages indexable, and resolve sitemap, redirect, canonical, and HTTP failures.",
+    contentReadiness: "Publish specific, answer-first content with useful facts, clear headings, FAQs, and strong topic coverage.",
+    structuredData: "Add valid page-appropriate JSON-LD, required properties, stable identifiers, and resolved entity relationships.",
+    entityConfidence: "Use one consistent brand identity, stable Organization @id, connected entities, and authoritative sameAs profiles.",
+    trustEvidence: "Add named experts, credentials, first-party evidence, policies, citations, reviews, and verifiable business details.",
+    metadataQuality: "Use unique, relevant titles and descriptions aligned with each page’s H1 and visible topic.",
+  };
   return (
     <article className={styles.platformCard}>
-      <div>
-        <span className={styles.platformName}>{item.platform}</span>
-        <p className={styles.platformStatus}>{item.status || "Calculated from scan signals"}</p>
+      <div className={styles.platformSummary}>
+        <div className={styles.platformContent}>
+          <span className={styles.platformName}>{item.platform}</span>
+          <strong>{item.readinessIndex == null ? "Not measured" : `${item.readinessIndex}/100 internal readiness`}</strong>
+          <p className={styles.platformStatus}>{item.crawler || "Platform-specific crawler"}</p>
+          <div className={styles.platformMeta}>
+            <span>Tier: {item.tier || item.status || "N/A"}</span>
+            <span>Confidence: {item.confidence || "low"}</span>
+            <span>Coverage: {item.measuredSignals ?? 0}/{item.totalSignals ?? 0}</span>
+          </div>
+        </div>
+        <span className={`${styles.platformTier} ${styles[tone]}`}>{item.tier || item.status || "N/A"}</span>
       </div>
-      <div
-        className={`${styles.scorePill} ${styles[tone]}`}
-        style={{ "--platform-score": Math.min(100, Math.max(0, Number(item.score) || 0)) }}
-      >
-        <strong>{item.score}%</strong>
-      </div>
+      <details className={styles.platformDetails}>
+        <summary>How this index is calculated and what closes the gap</summary>
+        <p className={styles.formula}>Formula: Σ(category score × platform weight) ÷ {measuredWeight || 100} measured weight. This is ScanSiteAI’s proprietary readiness index—not an official {item.platform} visibility score.</p>
+        <div className={styles.platformBreakdown}>
+          {breakdown.map((part) => {
+            const contribution = part.measured && measuredWeight ? ((Number(part.score) || 0) * (Number(part.weight) || 0) / measuredWeight) : null;
+            const maximum = measuredWeight ? ((Number(part.weight) || 0) * 100 / measuredWeight) : 0;
+            const gap = contribution == null ? null : Math.max(0, maximum - contribution);
+            return <div key={part.key} className={styles.platformBreakdownRow}>
+              <div><strong>{part.label}</strong><span>{part.measured ? `${part.score}/100 · ${part.weight}% weight` : "Not measured"}</span></div>
+              <div className={styles.contribution}><strong>{contribution == null ? "N/A" : contribution.toFixed(1)}</strong><span>contribution</span></div>
+              <div className={styles.gap}><strong>{gap == null ? "N/A" : `+${gap.toFixed(1)}`}</strong><span>gap to max</span></div>
+              <p>{guidance[part.key] || "Improve the underlying measured checks and supporting evidence for this category."}</p>
+            </div>;
+          })}
+        </div>
+        <div className={styles.platformSignals}>{(item.signals || []).map((signal) => <div key={signal.label}><span className={signal.status === "pass" ? styles.signalPass : signal.status === "fail" ? styles.signalFail : styles.signalWarning}>{signal.status === "pass" ? "✓" : signal.status === "fail" ? "×" : "!"}</span><p><strong>{signal.label}</strong><small>{signal.evidence}</small></p></div>)}</div>
+      </details>
     </article>
   );
 }
@@ -186,6 +218,7 @@ export default async function ReportPage({ params, searchParams }) {
   const recommendations = Array.isArray(report.recommendations) ? report.recommendations : [];
   const platforms = Array.isArray(report.platformScores) ? report.platformScores : [];
   const scoreBreakdown = report.scoreBreakdown || {};
+  const diagnosticChecks = Array.isArray(report.siteAudit?.diagnostics?.checks) ? report.siteAudit.diagnostics.checks : [];
   const scannedAt = report.scannedAt ? formatDateTime(report.scannedAt) : "Not available";
   const finalUrl = report.finalUrl || website;
 
@@ -196,7 +229,7 @@ export default async function ReportPage({ params, searchParams }) {
         <SiteHeader className="mx-auto w-full" />
         <div className={styles.actions}>
           <Link className={styles.action} href="/"><RefreshCw size={18} aria-hidden="true" />Run New Scan</Link>
-          <PrintButton className={styles.action} />
+          <PrintButton className={styles.action} reportId={id} submissionId={query?.submission || ""} website={website} />
         </div>
       </div>
 
@@ -212,7 +245,7 @@ export default async function ReportPage({ params, searchParams }) {
         </a>
       </section>
 
-      <section className={styles.hero}>
+      <section id="overview" className={styles.hero}>
         <div className={styles.heroContent}>
           <div className={styles.reportBrand}>
             <Image src="/logo.png" alt="ScanSiteAI logo" width={238} height={72} priority />
@@ -250,18 +283,18 @@ export default async function ReportPage({ params, searchParams }) {
         <Field label="Scanned At" value={scannedAt} />
       </section>
 
-      <section className={styles.section}>
+      <ReportNavigator recommendationCount={recommendations.length} pageCount={report.siteAudit?.pages?.length || 0} checkCount={diagnosticChecks.length} />
+
+      <section id="platforms" className={`${styles.section} scroll-mt-24`}>
         <SectionTitle
           kicker="Platform readiness"
-          title="AI Platform Scores"
-          copy="Estimated from technical signals, structured data, crawl access, content clarity and entity confidence."
+          title="Estimated Platform Technical Readiness"
+          copy="Qualitative proprietary readiness tiers—not official platform ratings, rankings, or citation probabilities."
         />
-        <div className={styles.cards}>
-          {platforms.map((item) => <PlatformCard key={item.platform} item={item} />)}
-        </div>
+        <PlatformReadinessCards platforms={platforms} />
       </section>
 
-      <section className={styles.section}>
+      <section id="scores" className={`${styles.section} scroll-mt-24`}>
         <SectionTitle
           kicker="Signal breakdown"
           title="Score Breakdown"
@@ -278,15 +311,31 @@ export default async function ReportPage({ params, searchParams }) {
         </div>
       </section>
 
-      <section className={styles.section}>
+      <section id="checks" className={`${styles.section} scroll-mt-24`}>
+        <SectionTitle
+          kicker="Complete checklist"
+          title={`${diagnosticChecks.length} Individual Signals Across 6 Readiness Categories`}
+          copy="The six categories are weighted summary dimensions. The larger number is the total of individual checks performed across all sampled pages, so repeated page-level checks increase the signal count."
+        />
+        <ChecksDataTable checks={diagnosticChecks} />
+      </section>
+
+      <section id="page-audit" className={`${styles.section} scroll-mt-24`}>
+        <SectionTitle
+          kicker="Page-level evidence"
+          title="Crawl Coverage and Metadata"
+          copy="Search and paginate the scanned URLs without stretching the report. Switch views to inspect crawl evidence or SEO metadata quality."
+        />
+        <ReportAuditTables audit={report.siteAudit} />
+      </section>
+
+      <section id="recommendations" className={`${styles.section} scroll-mt-24`}>
         <SectionTitle
           kicker="Action plan"
           title="Detailed Recommendations"
-          copy="Prioritized fixes written for implementation, not just scoring."
+          copy="Search or filter the action plan, then expand only the fixes you need. Ten recommendations are shown per page."
         />
-        <div className={styles.recommendations}>
-          {recommendations.map((item, index) => <RecommendationCard key={item.title} item={item} index={index} />)}
-        </div>
+        <RecommendationsExplorer recommendations={recommendations} />
       </section>
       <SiteFooter className="mx-auto mt-10 w-full" />
     </main>

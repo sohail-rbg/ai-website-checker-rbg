@@ -2,15 +2,20 @@ import axios from "axios";
 import * as cheerio from "cheerio";
 import robotsParser from "robots-parser";
 import { parseStringPromise } from "xml2js";
-import { SCORE_WEIGHTS, clampScore, gradeFor, statusFor, weightedAverageScore } from "./scoring";
-import { assertPublicUrl } from "./security";
+import { SCORE_WEIGHTS, clampScore, gradeFor, weightedAverageScore } from "./scoring.js";
+import { assertPublicUrl } from "./security.js";
+import { runSiteAudit } from "./siteAudit.js";
+import { runExternalVerification } from "./externalVerification.js";
 
-const BOT_AGENTS = ["GPTBot", "ClaudeBot", "Googlebot", "Google-Extended", "PerplexityBot", "CCBot", "Amazonbot", "Applebot"];
+const BOT_AGENTS = ["GPTBot", "OAI-SearchBot", "ChatGPT-User", "ClaudeBot", "Claude-SearchBot", "Googlebot", "Google-Extended", "PerplexityBot", "Bingbot", "CCBot", "Amazonbot", "Applebot"];
 const SCHEMA_TYPES = ["Organization", "Person", "Article", "FAQPage", "Service", "Product", "Review", "LocalBusiness", "BreadcrumbList", "Recipe", "HowTo", "Event", "VideoObject", "JobPosting", "Course"];
 const USER_AGENT = "ScanSiteAI/1.0 (+https://scansiteai.com)";
 const BROWSER_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36";
-const REQUEST_TIMEOUT = 15000;
+const REQUEST_TIMEOUT = 22000;
 const LIGHTHOUSE_TIMEOUT = 18000;
+const SCAN_DEADLINE_MS = 105000;
+const TRANSIENT_HTTP_STATUSES = new Set([408, 429, 502, 503, 504]);
+const TRANSIENT_NETWORK_CODES = new Set(["ECONNABORTED", "ETIMEDOUT", "ECONNRESET", "EAI_AGAIN", "ENETUNREACH", "EHOSTUNREACH"]);
 const CONTACT_PAGE_LIMIT = 3;
 const EMAIL_PATTERN = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
 const PHONE_PATTERN = /(?:\+?\d[\d\s().-]{7,}\d)/g;
@@ -100,12 +105,17 @@ function readablePhone(value) {
   return phone;
 }
 
-function normalizeObfuscatedContacts(text) {
+export function normalizeObfuscatedContacts(text) {
   return String(text || "")
-    .replace(/\s*(?:\[at\]|\(at\)|\bat\b)\s*/gi, "@")
-    .replace(/\s*(?:\[dot\]|\(dot\)|\bdot\b)\s*/gi, ".")
+    .replace(/\b([A-Z0-9._%+-]+)\s+at\s+([A-Z0-9-]+)\s+dot\s+([A-Z]{2,})\b/gi, "$1@$2.$3")
+    .replace(/\s*(?:\[at\]|\(at\))\s*/gi, "@")
+    .replace(/\s*(?:\[dot\]|\(dot\))\s*/gi, ".")
     .replace(/\s+@\s+/g, "@")
     .replace(/\s+\.\s+/g, ".");
+}
+
+export function decodeHtmlText(value) {
+  return cheerio.load(`<body>${String(value || "")}</body>`)("body").text().replace(/\s+/g, " ").trim();
 }
 
 function addRecommendation(items, rec) {
@@ -124,35 +134,168 @@ function timeoutAfter(ms, message) {
   });
 }
 
+export function networkFailurePhase(error) {
+  const code = String(error?.code || "").toUpperCase();
+  const message = String(error?.message || "").toLowerCase();
+  if (["ENOTFOUND", "EAI_AGAIN"].includes(code) || message.includes("getaddrinfo") || message.includes("dns")) return "dns";
+  if (code.includes("CERT") || code.includes("TLS") || message.includes("certificate") || message.includes("ssl") || message.includes("tls")) return "tls";
+  if (["ECONNREFUSED", "ENETUNREACH", "EHOSTUNREACH"].includes(code) || message.includes("connect")) return "connection";
+  if (["ECONNABORTED", "ETIMEDOUT", "ECONNRESET"].includes(code) || message.includes("timeout") || message.includes("timed out")) return "response";
+  return "request";
+}
+
+export function isTransientFailure(errorOrStatus) {
+  if (Number.isFinite(Number(errorOrStatus))) return TRANSIENT_HTTP_STATUSES.has(Number(errorOrStatus));
+  return TRANSIENT_NETWORK_CODES.has(String(errorOrStatus?.code || "").toUpperCase());
+}
+
+function retryDelay(attempt, retryAfter = "") {
+  const seconds = Number.parseFloat(retryAfter);
+  if (Number.isFinite(seconds)) return Math.min(2000, Math.max(250, seconds * 1000));
+  return [350, 900, 1600][attempt] || 1600;
+}
+
 async function fetchText(url, options = {}, redirectDepth = 0) {
   await assertPublicUrl(url);
-  const { headers = {}, ...requestOptions } = options;
-  const response = await axios.get(url, {
-    timeout: REQUEST_TIMEOUT,
-    maxRedirects: 0,
-    validateStatus: (status) => status < 500,
-    responseType: "text",
-    headers: { ...DEFAULT_HEADERS, ...headers },
-    ...requestOptions,
-  });
+  const { headers = {}, retries = 1, browserFallback = false, deadline = null, ...requestOptions } = options;
+  const attempts = [];
+  let response;
+  let lastError;
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    if (deadline && Date.now() >= deadline - 1000) {
+      const error = new Error("The scan time budget was exhausted before the website responded.");
+      error.code = "SCAN_DEADLINE";
+      error.attempts = attempts;
+      throw error;
+    }
+    const startedAt = Date.now();
+    const attemptHeaders = browserFallback && attempt > 0 ? { ...BROWSER_HEADERS, ...headers } : { ...DEFAULT_HEADERS, ...headers };
+    const timeout = deadline ? Math.max(1000, Math.min(REQUEST_TIMEOUT, deadline - Date.now() - 1000)) : REQUEST_TIMEOUT;
+    try {
+      response = await axios.get(url, {
+        timeout,
+        maxRedirects: 0,
+        validateStatus: () => true,
+        responseType: "text",
+        headers: attemptHeaders,
+        ...requestOptions,
+      });
+      attempts.push({ attempt: attempt + 1, transport: "axios", status: response.status, durationMs: Date.now() - startedAt, userAgent: browserFallback && attempt > 0 ? "browser" : "scanner" });
+      if (!isTransientFailure(response.status) || attempt >= retries) break;
+      await new Promise((resolve) => setTimeout(resolve, retryDelay(attempt, response.headers?.["retry-after"])));
+    } catch (error) {
+      lastError = error;
+      attempts.push({ attempt: attempt + 1, transport: "axios", code: error.code || "UNKNOWN", phase: networkFailurePhase(error), durationMs: Date.now() - startedAt, userAgent: browserFallback && attempt > 0 ? "browser" : "scanner" });
+      if (!isTransientFailure(error) || attempt >= retries) {
+        error.attempts = attempts;
+        error.failurePhase = networkFailurePhase(error);
+        throw error;
+      }
+      await new Promise((resolve) => setTimeout(resolve, retryDelay(attempt)));
+    }
+  }
+  if (!response && lastError) throw lastError;
+  response.scanAttempts = attempts;
   if ([301, 302, 303, 307, 308].includes(response.status) && response.headers.location) {
     if (redirectDepth >= MAX_REDIRECTS) throw new Error("Too many redirects while scanning this website.");
     const nextUrl = new URL(response.headers.location, url).toString();
-    return fetchText(nextUrl, options, redirectDepth + 1);
+    const redirected = await fetchText(nextUrl, options, redirectDepth + 1);
+    redirected.scanAttempts = [...attempts, ...(redirected.scanAttempts || [])];
+    return redirected;
   }
   response.finalUrl = response.config.url;
   return response;
 }
 
-async function fetchHomepage(url) {
-  const response = await fetchText(url);
-  if (response.status !== 403) return response;
+async function fetchWithNativeTransport(url, deadline, redirectDepth = 0, attempts = []) {
+  await assertPublicUrl(url);
+  if (deadline && Date.now() >= deadline - 1500) {
+    const error = new Error("Scan deadline reached before native Fetch fallback.");
+    error.code = "SCAN_DEADLINE";
+    error.attempts = attempts;
+    throw error;
+  }
+  const timeout = deadline ? Math.max(1000, Math.min(22000, deadline - Date.now() - 1000)) : 22000;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeout);
+  const startedAt = Date.now();
+  try {
+    const response = await fetch(url, { method: "GET", redirect: "manual", signal: controller.signal, headers: BROWSER_HEADERS });
+    attempts.push({ attempt: attempts.length + 1, transport: "native-fetch", status: response.status, durationMs: Date.now() - startedAt, userAgent: "browser" });
+    if ([301, 302, 303, 307, 308].includes(response.status) && response.headers.get("location")) {
+      if (redirectDepth >= MAX_REDIRECTS) throw new Error("Too many redirects while scanning this website.");
+      const target = new URL(response.headers.get("location"), url).toString();
+      return fetchWithNativeTransport(target, deadline, redirectDepth + 1, attempts);
+    }
+    const data = await response.text();
+    return { status: response.status, data, finalUrl: url, headers: Object.fromEntries(response.headers.entries()), scanAttempts: attempts, config: { url } };
+  } catch (error) {
+    const normalized = error.name === "AbortError" ? Object.assign(new Error(`Native Fetch timed out after ${timeout}ms.`), { code: "ETIMEDOUT" }) : error;
+    attempts.push({ attempt: attempts.length + 1, transport: "native-fetch", code: normalized.code || normalized.name || "UNKNOWN", phase: networkFailurePhase(normalized), durationMs: Date.now() - startedAt, userAgent: "browser" });
+    normalized.attempts = attempts;
+    normalized.failurePhase = networkFailurePhase(normalized);
+    throw normalized;
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
-  const retry = await fetchText(url, {
-    headers: BROWSER_HEADERS,
-  });
-  retry.usedBrowserRetry = true;
-  return retry;
+async function fetchWithBrowserTransport(url, deadline, attempts = []) {
+  await assertPublicUrl(url);
+  let browser;
+  const startedAt = Date.now();
+  try {
+    if (deadline && Date.now() >= deadline - 4000) throw Object.assign(new Error("Scan deadline reached before browser fallback."), { code: "SCAN_DEADLINE" });
+    const { default: puppeteer } = await import("puppeteer");
+    browser = await puppeteer.launch({ headless: true, args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-gpu"] });
+    const page = await browser.newPage();
+    await page.setUserAgent(BROWSER_USER_AGENT);
+    await page.setExtraHTTPHeaders(BROWSER_HEADERS);
+    const timeout = deadline ? Math.max(2000, Math.min(25000, deadline - Date.now() - 1500)) : 25000;
+    const response = await page.goto(url, { waitUntil: "domcontentloaded", timeout });
+    await page.waitForNetworkIdle({ idleTime: 350, timeout: 1500 }).catch(() => {});
+    const data = await page.content();
+    const finalUrl = page.url();
+    await assertPublicUrl(finalUrl);
+    attempts.push({ attempt: attempts.length + 1, transport: "browser", status: response?.status() || 200, durationMs: Date.now() - startedAt, userAgent: "browser" });
+    return { status: response?.status() || 200, data, finalUrl, headers: response?.headers() || {}, scanAttempts: attempts, config: { url: finalUrl }, browserRenderedFallback: true };
+  } catch (error) {
+    attempts.push({ attempt: attempts.length + 1, transport: "browser", code: error.code || error.name || "UNKNOWN", phase: networkFailurePhase(error), durationMs: Date.now() - startedAt, userAgent: "browser" });
+    error.attempts = attempts;
+    error.failurePhase = networkFailurePhase(error);
+    throw error;
+  } finally {
+    if (browser) await browser.close().catch(() => {});
+  }
+}
+
+async function fetchHomepage(url, deadline) {
+  const allAttempts = [];
+  let response;
+  let lastError;
+  try {
+    response = await fetchText(url, { retries: 2, browserFallback: true, deadline });
+    allAttempts.push(...(response.scanAttempts || []));
+    if (![401, 403].includes(response.status) && !isTransientFailure(response.status)) return response;
+  } catch (error) {
+    lastError = error;
+    allAttempts.push(...(error.attempts || []));
+  }
+  try {
+    const nativeResponse = await fetchWithNativeTransport(url, deadline, 0, allAttempts);
+    if (![401, 403].includes(nativeResponse.status) && !isTransientFailure(nativeResponse.status)) return nativeResponse;
+    response = nativeResponse;
+  } catch (error) {
+    lastError = error;
+  }
+  try {
+    return await fetchWithBrowserTransport(url, deadline, allAttempts);
+  } catch (error) {
+    lastError = error;
+  }
+  if (response) return response;
+  lastError.attempts = allAttempts;
+  throw lastError;
 }
 
 function blockedScanMessage(status) {
@@ -260,7 +403,7 @@ function analyzeSchema($) {
   const present = SCHEMA_TYPES.filter((type) => found.includes(type));
   const normalizedPresent = present.map((type) => (type === "FAQPage" ? "FAQ" : type === "BreadcrumbList" ? "Breadcrumb" : type === "VideoObject" ? "Video" : type));
   const important = ["Organization", "LocalBusiness", "Person", "Article", "FAQPage", "Product", "Service", "BreadcrumbList"];
-  const score = clampScore(((important.filter((type) => found.includes(type)).length / important.length) * 80) + (invalid.length ? 0 : 20));
+  const score = found.length ? clampScore(((important.filter((type) => found.includes(type)).length / important.length) * 80) + (invalid.length ? 0 : 20)) : 0;
 
   return {
     score,
@@ -513,6 +656,8 @@ function mergeEntities(primary, extras = []) {
 
   return {
     ...merged,
+    companyName: decodeHtmlText(merged.companyName),
+    brand: decodeHtmlText(merged.brand),
     score: Math.max(primary.score || 0, entityScore(merged, Boolean(merged.services?.length || merged.products?.length))),
   };
 }
@@ -611,11 +756,12 @@ function estimatePerformanceFromResponse(response) {
 
   const score = clampScore(timingScore + sizeScore + transferScore + compressionScore + statusScore);
   return {
-    score,
-    performance: score,
-    accessibility: 80,
-    seo: 90,
-    bestPractices: statusOk ? 88 : 60,
+    score: null,
+    performance: null,
+    accessibility: null,
+    seo: null,
+    bestPractices: null,
+    estimate: score,
     skipped: true,
     fallback: true,
     responseTimeMs,
@@ -666,8 +812,7 @@ async function runLighthouse(url, initialResponse) {
 
 async function captureHomepagePreview(url) {
   let browser;
-  const fallbackImage = `https://s.wordpress.com/mshots/v1/${encodeURIComponent(url)}?w=1280`;
-
+  const attempts = [];
   try {
     await assertPublicUrl(url);
     const { default: puppeteer } = await import("puppeteer");
@@ -682,72 +827,101 @@ async function captureHomepagePreview(url) {
         "--hide-scrollbars",
       ],
     });
-    const page = await browser.newPage();
-    await page.setViewport({ width: 1280, height: 820, deviceScaleFactor: 1 });
-    await page.setUserAgent(BROWSER_USER_AGENT);
-    await page.setExtraHTTPHeaders(BROWSER_HEADERS);
-    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 12000 });
-    await page.waitForNetworkIdle({ idleTime: 700, timeout: 3500 }).catch(() => {});
-    await new Promise((resolve) => setTimeout(resolve, 700));
-    const image = await page.screenshot({
-      type: "jpeg",
-      quality: 72,
-      fullPage: false,
-      encoding: "base64",
-    });
-    const title = await page.title().catch(() => "");
-    return {
-      image: `data:image/jpeg;base64,${image}`,
-      title,
-      width: 1280,
-      height: 820,
-      capturedAt: new Date().toISOString(),
-      error: null,
-      fallback: false,
-    };
+    for (const timeout of [10000, 16000]) {
+      const page = await browser.newPage();
+      const startedAt = Date.now();
+      try {
+        await page.setViewport({ width: 1280, height: 820, deviceScaleFactor: 1 });
+        await page.setUserAgent(BROWSER_USER_AGENT);
+        await page.setExtraHTTPHeaders(BROWSER_HEADERS);
+        const response = await page.goto(url, { waitUntil: "domcontentloaded", timeout });
+        await page.waitForNetworkIdle({ idleTime: 400, timeout: 1800 }).catch(() => {});
+        await new Promise((resolve) => setTimeout(resolve, 350));
+        const image = await page.screenshot({ type: "jpeg", quality: 72, fullPage: false, encoding: "base64" });
+        const title = await page.title().catch(() => "");
+        attempts.push({ status: "success", httpStatus: response?.status() || null, durationMs: Date.now() - startedAt });
+        return { image: `data:image/jpeg;base64,${image}`, title, width: 1280, height: 820, capturedAt: new Date().toISOString(), status: "captured", error: null, fallback: false, attempts };
+      } catch (error) {
+        attempts.push({ status: "failed", error: error.message, durationMs: Date.now() - startedAt });
+      } finally {
+        await page.close().catch(() => {});
+      }
+    }
+    throw new Error(attempts.at(-1)?.error || "Preview capture failed after two attempts.");
   } catch (error) {
     return {
-      image: fallbackImage,
+      image: "",
       title: "",
       width: 1280,
       height: 820,
       capturedAt: null,
+      status: "unavailable",
       error: error.message,
-      fallback: true,
+      fallback: false,
+      attempts,
     };
   } finally {
     if (browser) await browser.close();
   }
 }
 
-function calculatePlatformScores(scores, schema, content, eeat, entities, robots) {
-  const base = {
-    ChatGPT: scores.schema * 0.22 + scores.content * 0.22 + scores.eeat * 0.18 + scores.entities * 0.18 + scores.robots * 0.1 + scores.metadata * 0.1,
-    Claude: scores.content * 0.26 + scores.eeat * 0.22 + scores.schema * 0.18 + scores.metadata * 0.12 + scores.robots * 0.12 + scores.readability * 0.1,
-    Gemini: scores.metadata * 0.18 + scores.schema * 0.18 + scores.performance * 0.16 + scores.content * 0.16 + scores.eeat * 0.14 + scores.sitemap * 0.1 + scores.links * 0.08,
-    Perplexity: scores.schema * 0.2 + scores.eeat * 0.2 + scores.content * 0.18 + scores.entities * 0.15 + scores.links * 0.12 + scores.sitemap * 0.1 + scores.metadata * 0.05,
-    "Google AI Overview": scores.metadata * 0.16 + scores.schema * 0.2 + scores.performance * 0.14 + scores.eeat * 0.18 + scores.content * 0.14 + scores.sitemap * 0.1 + scores.links * 0.08,
-    "Microsoft Copilot": scores.schema * 0.2 + scores.metadata * 0.16 + scores.content * 0.18 + scores.eeat * 0.16 + scores.entities * 0.14 + scores.robots * 0.08 + scores.performance * 0.08,
+export function calculatePlatformReadiness(siteAudit) {
+  const category = (key) => siteAudit.categoryScores?.[key]?.measured ? siteAudit.categoryScores[key].score : null;
+  const schemaScores = siteAudit.pages.map((page) => page.schema?.score).filter(Number.isFinite);
+  const structuredData = schemaScores.length ? clampScore(schemaScores.reduce((sum, value) => sum + value, 0) / schemaScores.length) : null;
+  const values = {
+    crawlability: category("crawlability"),
+    contentReadiness: category("contentReadiness"),
+    structuredData,
+    entityConfidence: category("entityConfidence"),
+    trustEvidence: siteAudit.contentAnalysis?.trustEvidenceScore ?? null,
+    metadataQuality: siteAudit.metadataAnalysis?.score ?? null,
   };
-
-  return Object.entries(base).map(([platform, score]) => {
-    const value = clampScore(score);
-    const strengths = [];
-    const weaknesses = [];
-    if (schema.present.length) strengths.push(`${schema.present.slice(0, 3).join(", ")} schema detected`);
-    if (content.hasFAQ) strengths.push("FAQ-style answers detected");
-    if (entities.companyName) strengths.push("Brand entity identified");
-    if (eeat.checks.contactPage) strengths.push("Contact signals present");
-    if (!schema.present.includes("Organization") && !schema.present.includes("LocalBusiness")) weaknesses.push("Organization entity schema missing");
-    if (!eeat.checks.author) weaknesses.push("Author or editorial ownership unclear");
-    if (!robots.bots?.some((bot) => bot.bot === "GPTBot" && bot.allowed)) weaknesses.push("AI crawler permission is unclear");
+  const weights = {
+    ChatGPT: { crawlability: 15, contentReadiness: 25, structuredData: 15, entityConfidence: 20, trustEvidence: 15, metadataQuality: 10 },
+    Claude: { crawlability: 15, contentReadiness: 30, structuredData: 10, entityConfidence: 15, trustEvidence: 20, metadataQuality: 10 },
+    Gemini: { crawlability: 20, contentReadiness: 15, structuredData: 20, entityConfidence: 15, trustEvidence: 10, metadataQuality: 20 },
+    Perplexity: { crawlability: 20, contentReadiness: 20, structuredData: 15, entityConfidence: 15, trustEvidence: 20, metadataQuality: 10 },
+    "Google AI Overview": { crawlability: 20, contentReadiness: 20, structuredData: 20, entityConfidence: 10, trustEvidence: 15, metadataQuality: 15 },
+    "Microsoft Copilot": { crawlability: 20, contentReadiness: 20, structuredData: 15, entityConfidence: 15, trustEvidence: 15, metadataQuality: 15 },
+  };
+  const crawlerNames = { ChatGPT: "OAI-SearchBot / GPTBot", Claude: "Claude-SearchBot / ClaudeBot", Gemini: "Googlebot / Google-Extended", Perplexity: "PerplexityBot", "Google AI Overview": "Googlebot / Google-Extended", "Microsoft Copilot": "Bingbot" };
+  const entity = siteAudit.entityAnalysis || {};
+  const brandVisible = Boolean(entity.brandNameConsistency?.primaryName);
+  const brandInMetadata = siteAudit.pages.some((page) => page.schema?.entitySignals?.brandNames?.some((item) => item.source === "open graph"));
+  const organizationSchema = siteAudit.pages.some((page) => page.schema?.types?.some((type) => ["Organization", "LocalBusiness"].includes(type)));
+  const stableOrganizationId = Boolean(entity.entityIdentity?.organizationIds?.length);
+  const externalProfiles = Boolean(entity.entityIdentity?.externalProfiles?.length);
+  return Object.entries(weights).map(([platform, platformWeights]) => {
+    const measured = Object.entries(platformWeights).filter(([key]) => Number.isFinite(values[key]));
+    const measuredWeight = measured.reduce((sum, [, weight]) => sum + weight, 0);
+    const readinessIndex = measuredWeight ? clampScore(measured.reduce((sum, [key, weight]) => sum + values[key] * weight, 0) / measuredWeight) : null;
+    const tier = readinessIndex == null ? "Not Measured" : readinessIndex >= 80 ? "Strong" : readinessIndex >= 65 ? "Moderate" : readinessIndex >= 45 ? "Needs Work" : "Weak";
+    const breakdown = Object.entries(platformWeights).map(([key, weight]) => ({ key, label: key.replace(/([A-Z])/g, " $1").replace(/^./, (char) => char.toUpperCase()), score: values[key], weight, measured: Number.isFinite(values[key]) }));
+    const signals = [
+      { label: "Brand mentioned in visible content", status: brandVisible ? "pass" : "fail", evidence: entity.brandNameConsistency?.primaryName || "Not detected" },
+      { label: "Brand found in metadata", status: brandInMetadata ? "pass" : "warning", evidence: brandInMetadata ? "Open Graph or application metadata" : "Not detected in trusted metadata" },
+      { label: "Organization schema present", status: organizationSchema ? "pass" : "fail", evidence: organizationSchema ? "Organization or LocalBusiness detected" : "Missing" },
+      { label: "Stable organization @id", status: stableOrganizationId ? "pass" : "warning", evidence: stableOrganizationId ? entity.entityIdentity.organizationIds[0] : "Missing" },
+      { label: "External identity profiles", status: externalProfiles ? "pass" : "warning", evidence: externalProfiles ? `${entity.entityIdentity.externalProfiles.length} profiles connected` : "No authoritative sameAs profiles" },
+    ];
     return {
       platform,
-      score: value,
-      status: statusFor(value),
-      strengths: strengths.slice(0, 4),
-      weaknesses: weaknesses.slice(0, 4),
-      suggestions: weaknesses.length ? weaknesses.map((item) => `Resolve: ${item}`) : ["Keep schema, citations, and entity details current."],
+      score: readinessIndex,
+      readinessIndex,
+      tier,
+      status: tier,
+      label: `${platform} Technical Readiness`,
+      confidence: siteAudit.confidence?.level || "low",
+      crawler: crawlerNames[platform],
+      breakdown,
+      signals,
+      measuredSignals: measured.length,
+      totalSignals: Object.keys(platformWeights).length,
+      disclaimer: "Proprietary technical-readiness assessment. Not an official platform rating, ranking, citation probability, or visibility measurement.",
+      strengths: signals.filter((item) => item.status === "pass").map((item) => `${item.label}: ${item.evidence}`),
+      weaknesses: signals.filter((item) => item.status !== "pass").map((item) => `${item.label}: ${item.evidence}`),
+      suggestions: signals.filter((item) => item.status !== "pass").map((item) => `Resolve: ${item.label}`),
     };
   });
 }
@@ -829,7 +1003,7 @@ function buildRecommendations({ metadata, schema, headings, images, links, conte
     expectedGain: 4,
     priority: 62,
   });
-  if (performance.performance < 50) addRecommendation(items, {
+  if (Number.isFinite(performance.performance) && performance.performance < 50) addRecommendation(items, {
     title: "Improve Page Performance",
     description: "Lighthouse performance is low or could not complete.",
     currentStatus: `${performance.performance}/100`,
@@ -881,18 +1055,22 @@ function scoreAll(parts) {
   return { scores, overall: weightedAverageScore(scores) };
 }
 
-export async function scanWebsite(inputUrl) {
+export async function scanWebsite(inputUrl, options = {}) {
+  const scanStartedAt = Date.now();
+  const scanDeadline = scanStartedAt + SCAN_DEADLINE_MS;
   const url = normalizeUrl(inputUrl);
   await assertPublicUrl(url);
   let response;
   try {
     const startedAt = Date.now();
-    response = await fetchHomepage(url);
+    response = await fetchHomepage(url, scanDeadline);
     response.durationMs = Date.now() - startedAt;
   } catch (error) {
-    if (["ECONNABORTED", "ETIMEDOUT"].includes(error.code)) {
+    if (isTransientFailure(error) || error.code === "SCAN_DEADLINE") {
+      const phase = error.failurePhase || networkFailurePhase(error);
+      const attempts = error.attempts?.length || 1;
       throw new Error(
-        "This website is taking too long to respond. Please try again in a few minutes. If it keeps happening, ask your developer or hosting team to check slow server response, firewall rules, Cloudflare bot protection, or whether server-side crawlers are being delayed."
+        `Scan incomplete: the initial homepage request did not complete after ${attempts} attempt${attempts === 1 ? "" : "s"}. Failure stage: ${phase}. The website may still work normally in a browser; server-to-server requests can be delayed by hosting, DNS, TLS, a firewall, rate limiting, or bot protection. Please retry shortly.`
       );
     }
     throw new Error(`We could not reach this website. Please check that the URL is correct, the site is online, and it can be opened publicly. Technical detail: ${error.message}`);
@@ -900,6 +1078,11 @@ export async function scanWebsite(inputUrl) {
 
   if ([401, 403].includes(response.status)) {
     throw new Error(blockedScanMessage(response.status));
+  }
+
+  if (isTransientFailure(response.status)) {
+    const attempts = response.scanAttempts?.length || 1;
+    throw new Error(`Scan incomplete: the website returned temporary HTTP ${response.status} after ${attempts} attempt${attempts === 1 ? "" : "s"}. This may be rate limiting, upstream hosting trouble, a CDN timeout, or bot protection. Please retry shortly.`);
   }
 
   if (response.status >= 400) {
@@ -926,8 +1109,91 @@ export async function scanWebsite(inputUrl) {
   ]);
   const entities = mergeEntities(homepageEntities, contactPageEntities);
   const scored = scoreAll({ metadata, schema, performance, content, eeat, entities, robots, sitemap, links, images });
-  const recommendations = buildRecommendations({ metadata, schema, headings, images, links, content, eeat, robots, sitemap, performance, entities });
-  const platformScores = calculatePlatformScores(scored.scores, schema, content, eeat, entities, robots);
+  const [siteAudit, externalVerification] = await Promise.all([
+    runSiteAudit(finalUrl, { profile: options.profile || "auto", robots, performance, homepageInternalUrls: links.sampleInternal || [], deadline: scanDeadline }),
+    runExternalVerification(finalUrl),
+  ]);
+  const baseRecommendations = buildRecommendations({ metadata, schema, headings, images, links, content, eeat, robots, sitemap, performance, entities });
+  const seenRecommendationKeys = new Set();
+  const recommendations = baseRecommendations.map((item) => ({
+    ...item,
+    status: "fail",
+    confidence: "high",
+    affectedUrl: finalUrl,
+    evidence: item.currentStatus,
+    businessImpact: item.whyAiCares,
+    beforeAfter: `Before: ${item.currentStatus}. After: ${item.howToFix}`,
+    scoreEffect: Math.min(item.expectedGain || 0, Math.max(0, 100 - siteAudit.siteWideScore)),
+  }));
+  recommendations.forEach((item) => seenRecommendationKeys.add(`${item.title}|${item.affectedUrl}`));
+  const entityChecks = [
+    ["Entity Identity", siteAudit.entityAnalysis.entityIdentity, "Define one canonical organization identity with a stable @id, name, URL, logo, and authoritative external profiles."],
+    ["Entity Connections", siteAudit.entityAnalysis.entityConnections, "Connect products, services, authors, and locations to the organization using resolved @id relationships."],
+    ["Brand Name Consistency", siteAudit.entityAnalysis.brandNameConsistency, "Use one canonical brand spelling across schema, Open Graph, titles, headers, and footers."],
+    ["NAP Consistency", siteAudit.entityAnalysis.napConsistency, "Use the same business name, address, and phone in visible content and LocalBusiness schema."],
+  ];
+  for (const [title, check, fix] of entityChecks) {
+    if (!check || ["pass", "not_applicable"].includes(check.status)) continue;
+    const evidence = title === "Brand Name Consistency"
+      ? `Variants: ${(check.variants || []).map((item) => item.value).join(", ") || "No stable brand name detected"}`
+      : title === "NAP Consistency"
+        ? `Conflicting fields: ${(check.conflicts || []).map((item) => item.field).join(", ") || "Name, address, or phone is incomplete"}`
+        : title === "Entity Connections"
+          ? `${check.relationships?.length || 0} relationships; ${check.unresolvedRelationships?.length || 0} unresolved`
+          : `Organization found on ${check.pagesWithOrganization || 0} of ${check.pagesChecked || 0} sampled pages`;
+    recommendations.push({
+      title,
+      description: evidence,
+      currentStatus: check.status,
+      whyAiCares: "Consistent entity evidence helps search and AI systems disambiguate the business and connect it to its offerings and locations.",
+      howToFix: fix,
+      difficulty: "Medium",
+      estimatedTime: "1-3 hours",
+      expectedGain: 4,
+      priority: check.status === "fail" ? 89 : 70,
+      status: check.status,
+      confidence: "high",
+      affectedUrl: finalUrl,
+      affectedElement: "Visible business details and JSON-LD entity graph",
+      evidence,
+      businessImpact: "Conflicts can weaken entity confidence, local relevance, and reliable attribution.",
+      beforeAfter: `Before: ${evidence}. After: ${fix}`,
+      scoreEffect: Math.min(4, Math.max(0, 100 - siteAudit.siteWideScore)),
+    });
+  }
+  for (const finding of siteAudit.findings.filter((item) => ["fail", "warning", "unknown"].includes(item.status))) {
+    const key = `${finding.check}|${finding.url}`;
+    if (seenRecommendationKeys.has(key)) continue;
+    seenRecommendationKeys.add(key);
+    recommendations.push({
+      title: finding.check,
+      description: finding.evidence,
+      currentStatus: finding.status,
+      whyAiCares: finding.check === "JavaScript dependency" ? "Important content absent from raw HTML may be harder or slower for crawlers to retrieve." : "This signal affects discovery, indexing, interpretation, or citation readiness.",
+      howToFix: finding.fix,
+      difficulty: "Medium",
+      estimatedTime: "1-2 hours",
+      expectedGain: 2,
+      priority: finding.status === "fail" ? 75 : 55,
+      status: finding.status,
+      confidence: finding.confidence,
+      affectedUrl: finding.url,
+      evidence: finding.evidence,
+      affectedElement: finding.element,
+      businessImpact: "May reduce reliable crawl, index, or interpretation coverage for this page.",
+      beforeAfter: `Before: ${finding.evidence}. After: ${finding.fix}`,
+      scoreEffect: Math.min(2, Math.max(0, 100 - siteAudit.siteWideScore)),
+    });
+  }
+  recommendations.sort((a, b) => b.priority - a.priority);
+  let remainingGain = Math.max(0, 100 - siteAudit.siteWideScore);
+  for (const recommendation of recommendations) {
+    const bounded = Math.min(recommendation.scoreEffect ?? recommendation.expectedGain ?? 0, remainingGain);
+    recommendation.scoreEffect = bounded;
+    recommendation.expectedGain = bounded;
+    remainingGain -= bounded;
+  }
+  const platformScores = calculatePlatformReadiness(siteAudit);
 
   const checklist = {
     robots: robots.exists && robots.valid,
@@ -938,7 +1204,7 @@ export async function scanWebsite(inputUrl) {
     schema: schema.present.length > 0 && !schema.invalid.length,
     headingStructure: headings.score >= 70,
     images: images.score >= 70,
-    accessibility: performance.accessibility >= 70,
+    accessibility: Number.isFinite(performance.accessibility) ? performance.accessibility >= 70 : null,
     internalLinking: links.internal > 0,
   };
 
@@ -947,11 +1213,19 @@ export async function scanWebsite(inputUrl) {
     finalUrl,
     redirected: url !== finalUrl,
     scannedAt: new Date().toISOString(),
-    overallScore: scored.overall,
-    grade: gradeFor(scored.overall),
+    scanDurationMs: Date.now() - scanStartedAt,
+    networkDiagnostics: { homepageAttempts: response.scanAttempts || [], initialResponseTimeMs: response.durationMs, deadlineMs: SCAN_DEADLINE_MS },
+    overallScore: siteAudit.siteWideScore,
+    siteWideScore: siteAudit.siteWideScore,
+    grade: gradeFor(siteAudit.siteWideScore),
     scoreBreakdown: scored.scores,
     weights: SCORE_WEIGHTS,
     platformScores,
+    profile: siteAudit.profile,
+    categoryScores: siteAudit.categoryScores,
+    siteAudit,
+    externalVerification,
+    scoringCalibration: { version: "2026.07-profile-v1", method: "Profile-weighted measured categories; unmeasured categories are excluded and scan confidence is reported separately.", profile: siteAudit.profile.value, benchmarkSuite: "tests/benchmarks/sites.json" },
     metadata,
     schema,
     headings,
