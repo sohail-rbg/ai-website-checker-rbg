@@ -1,10 +1,9 @@
 import axios from "axios";
 import * as cheerio from "cheerio";
 import robotsParser from "robots-parser";
-import { parseStringPromise } from "xml2js";
 import { SCORE_WEIGHTS, clampScore, gradeFor, weightedAverageScore } from "./scoring.js";
 import { assertPublicUrl } from "./security.js";
-import { runSiteAudit } from "./siteAudit.js";
+import { discoverSitemaps, runSiteAudit } from "./siteAudit.js";
 import { runExternalVerification } from "./externalVerification.js";
 import { launchBrowser } from "./browser.js";
 
@@ -782,38 +781,71 @@ async function extractContactPageEntities($, baseUrl) {
 async function analyzeRobots(baseUrl) {
   const robotsUrl = new URL("/robots.txt", baseUrl).toString();
   try {
-    const response = await fetchText(robotsUrl, { headers: { "User-Agent": USER_AGENT, Accept: "text/plain,*/*" } });
+    let response = await fetchText(robotsUrl, { retries: 0, headers: { "User-Agent": USER_AGENT, Accept: "text/plain,*/*" } });
+    const scannerStatus = response.status;
+    const scannerBlocked = [401, 403].includes(scannerStatus);
+    if (scannerBlocked) {
+      response = await fetchText(robotsUrl, { retries: 0, headers: { ...BROWSER_HEADERS, Accept: "text/plain,*/*" } });
+    }
     if (response.status >= 400) throw new Error(`robots.txt returned HTTP ${response.status}`);
     const parser = robotsParser(robotsUrl, response.data);
     const bots = BOT_AGENTS.map((bot) => ({ bot, allowed: parser.isAllowed(baseUrl, bot) !== false }));
     const allowed = bots.filter((bot) => bot.allowed).length;
-    return { score: clampScore((allowed / bots.length) * 100), exists: true, valid: true, url: robotsUrl, bots, blockedBots: bots.filter((bot) => !bot.allowed).map((bot) => bot.bot), raw: response.data.slice(0, 2500) };
+    return {
+      score: clampScore((allowed / bots.length) * 100),
+      exists: true,
+      valid: true,
+      url: robotsUrl,
+      bots,
+      blockedBots: bots.filter((bot) => !bot.allowed).map((bot) => bot.bot),
+      raw: response.data.slice(0, 2500),
+      scannerBlocked,
+      scannerStatus,
+      accessMethod: scannerBlocked ? "browser_fallback" : "scanner",
+    };
   } catch (error) {
     return { score: 30, exists: false, valid: false, url: robotsUrl, bots: BOT_AGENTS.map((bot) => ({ bot, allowed: null })), blockedBots: [], error: error.message };
   }
 }
 
-async function analyzeSitemap(baseUrl) {
-  const sitemapUrl = new URL("/sitemap.xml", baseUrl).toString();
+async function analyzeSitemap(baseUrl, robotsRaw = "", deadline = null, sitemapDiscovery = null) {
   try {
-    const response = await fetchText(sitemapUrl, { headers: { "User-Agent": USER_AGENT, Accept: "application/xml,text/xml,*/*" } });
-    if (response.status >= 400) throw new Error(`sitemap.xml returned HTTP ${response.status}`);
-    const parsed = await parseStringPromise(response.data);
-    const urls = parsed.urlset?.url || [];
-    const xml = response.data;
+    const discovered = await Promise.resolve(sitemapDiscovery || discoverSitemaps(baseUrl, robotsRaw, deadline));
+    if (!discovered.documents.length) {
+      if (discovered.declaredInRobots.length) {
+        return {
+          score: null,
+          exists: null,
+          validXml: null,
+          status: "declared_unverified",
+          url: discovered.declaredInRobots[0],
+          urlCount: 0,
+          documents: [],
+          declaredInRobots: discovered.declaredInRobots,
+          missingUrls: null,
+          error: discovered.errors[0]?.error || "Sitemap was declared in robots.txt but could not be verified during this scan.",
+        };
+      }
+      throw new Error(discovered.errors[0]?.error || "No valid sitemap document was found.");
+    }
+    const sitemapUrl = discovered.documents[0].url;
+    const urls = discovered.urls;
     return {
-      score: clampScore((urls.length ? 60 : 20) + (/image:image/.test(xml) ? 10 : 0) + (/news:news/.test(xml) ? 10 : 0) + (/video:video/.test(xml) ? 10 : 0) + (parsed ? 10 : 0)),
+      score: clampScore((urls.length ? 90 : 50) + (discovered.declaredInRobots.length ? 10 : 0)),
       exists: true,
       validXml: true,
+      status: "verified",
       url: sitemapUrl,
       urlCount: urls.length,
-      imagesSitemap: /image:image/.test(xml),
-      newsSitemap: /news:news/.test(xml),
-      videoSitemap: /video:video/.test(xml),
+      documents: discovered.documents,
+      declaredInRobots: discovered.declaredInRobots,
+      imagesSitemap: false,
+      newsSitemap: false,
+      videoSitemap: false,
       missingUrls: urls.length === 0,
     };
   } catch (error) {
-    return { score: 0, exists: false, validXml: false, url: sitemapUrl, urlCount: 0, imagesSitemap: false, newsSitemap: false, videoSitemap: false, missingUrls: true, error: error.message };
+    return { score: 0, exists: false, validXml: false, url: new URL("/sitemap.xml", baseUrl).toString(), urlCount: 0, imagesSitemap: false, newsSitemap: false, videoSitemap: false, missingUrls: true, error: error.message };
   }
 }
 
@@ -1078,9 +1110,9 @@ function buildRecommendations({ metadata, schema, headings, images, links, conte
     expectedGain: 6,
     priority: 90,
   });
-  if (!sitemap.exists) addRecommendation(items, {
+  if (sitemap.exists === false) addRecommendation(items, {
     title: "Publish XML Sitemap",
-    description: "No valid sitemap.xml was found at the root.",
+    description: "No sitemap declaration or valid sitemap was found.",
     currentStatus: "Not found",
     whyAiCares: "Sitemaps help crawlers discover important pages beyond the homepage.",
     howToFix: "Generate and submit an XML sitemap with canonical URLs.",
@@ -1221,19 +1253,28 @@ export async function scanWebsite(inputUrl, options = {}) {
   const content = analyzeContent($);
   const eeat = analyzeEEAT($, finalUrl, content.text);
   const homepageEntities = extractEntities($, metadata, content.text, finalUrl, "homepage");
-  const [robots, sitemap, performance, preview, contactPageEntities] = await Promise.all([
-    analyzeRobots(finalUrl),
-    analyzeSitemap(finalUrl),
-    runLighthouse(finalUrl, response),
+  const robotsPromise = analyzeRobots(finalUrl);
+  const sitemapDiscoveryPromise = robotsPromise.then((result) => discoverSitemaps(finalUrl, result.raw || "", scanDeadline));
+  const performancePromise = runLighthouse(finalUrl, response);
+  const siteAuditPromise = robotsPromise.then((robotsResult) => runSiteAudit(finalUrl, {
+    profile: options.profile || "saas",
+    robots: robotsResult,
+    performance: performancePromise,
+    homepageInternalUrls: links.sampleInternal || [],
+    sitemapDiscovery: sitemapDiscoveryPromise,
+    deadline: scanDeadline,
+  }));
+  const [robots, sitemap, performance, preview, contactPageEntities, siteAudit, externalVerification] = await Promise.all([
+    robotsPromise,
+    robotsPromise.then((result) => analyzeSitemap(finalUrl, result.raw || "", scanDeadline, sitemapDiscoveryPromise)),
+    performancePromise,
     captureHomepagePreview(finalUrl),
     extractContactPageEntities($, finalUrl),
+    siteAuditPromise,
+    runExternalVerification(finalUrl),
   ]);
   const entities = mergeEntities(homepageEntities, contactPageEntities);
   const scored = scoreAll({ metadata, schema, performance, content, eeat, entities, robots, sitemap, links, images });
-  const [siteAudit, externalVerification] = await Promise.all([
-    runSiteAudit(finalUrl, { profile: options.profile || "saas", robots, performance, homepageInternalUrls: links.sampleInternal || [], deadline: scanDeadline }),
-    runExternalVerification(finalUrl),
-  ]);
   const baseRecommendations = buildRecommendations({ metadata, schema, headings, images, links, content, eeat, robots, sitemap, performance, entities });
   const seenRecommendationKeys = new Set();
   const recommendations = baseRecommendations.map((item) => ({
@@ -1318,7 +1359,7 @@ export async function scanWebsite(inputUrl, options = {}) {
 
   const checklist = {
     robots: robots.exists && robots.valid,
-    sitemap: sitemap.exists && sitemap.validXml,
+    sitemap: sitemap.exists == null ? null : sitemap.exists && sitemap.validXml,
     https: new URL(finalUrl).protocol === "https:",
     metadata: metadata.score >= 70,
     openGraph: metadata.openGraphTags >= 3,

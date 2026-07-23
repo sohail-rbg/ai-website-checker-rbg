@@ -30,6 +30,19 @@ function unique(values) {
   return [...new Set(values.filter(Boolean))];
 }
 
+async function mapWithConcurrency(values, limit, mapper) {
+  const results = new Array(values.length);
+  let nextIndex = 0;
+  async function worker() {
+    while (nextIndex < values.length) {
+      const index = nextIndex++;
+      results[index] = await mapper(values[index], index);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, values.length) }, () => worker()));
+  return results;
+}
+
 function absoluteUrl(value, base) {
   try {
     const url = new URL(value, base);
@@ -55,6 +68,16 @@ async function get(url, options = {}, depth = 0) {
     validateStatus: () => true,
     headers: { "User-Agent": USER_AGENT, Accept: "text/html,application/xml,text/xml,*/*", ...(options.headers || {}) },
   });
+  if ([401, 403].includes(response.status) && options.browserFallback !== false && (options.headers?.["User-Agent"] || USER_AGENT) !== BROWSER_AGENT) {
+    const fallback = await get(url, {
+      ...options,
+      browserFallback: false,
+      headers: { ...(options.headers || {}), "User-Agent": BROWSER_AGENT },
+    }, depth);
+    fallback.initialStatus = response.status;
+    fallback.usedBrowserFallback = true;
+    return fallback;
+  }
   if ([301, 302, 303, 307, 308].includes(response.status) && response.headers.location && depth < 5) {
     const target = new URL(response.headers.location, url).toString();
     const redirected = await get(target, options, depth + 1);
@@ -67,7 +90,10 @@ async function get(url, options = {}, depth = 0) {
 }
 
 function robotsSitemaps(raw, baseUrl) {
-  return unique(String(raw || "").split(/\r?\n/).map((line) => line.match(/^\s*sitemap\s*:\s*(.+)$/i)?.[1]?.trim()).map((value) => absoluteUrl(value, baseUrl)));
+  return unique(String(raw || "").split(/\r?\n/)
+    .map((line) => line.match(/^\s*sitemap\s*:\s*(.+)$/i)?.[1]?.trim())
+    .filter(Boolean)
+    .map((value) => absoluteUrl(value, baseUrl)));
 }
 
 async function analyzeDiscoveryFiles(baseUrl, existingRobots = null, deadline = null) {
@@ -98,7 +124,20 @@ async function analyzeDiscoveryFiles(baseUrl, existingRobots = null, deadline = 
   } catch (error) {
     llms = { optional: true, exists: false, valid: false, status: null, error: error.message, note: "llms.txt is optional." };
   }
-  return { robots: { url: robotsUrl, status: robotsStatus, exists: Boolean(robotsRaw), bots, sitemaps: robotsSitemaps(robotsRaw, baseUrl) }, llms, robotsRaw };
+  return {
+    robots: {
+      url: robotsUrl,
+      status: robotsStatus,
+      exists: Boolean(robotsRaw),
+      bots,
+      sitemaps: robotsSitemaps(robotsRaw, baseUrl),
+      scannerBlocked: Boolean(existingRobots?.scannerBlocked),
+      scannerStatus: existingRobots?.scannerStatus ?? null,
+      usedBrowserFallback: Boolean(existingRobots?.scannerBlocked),
+    },
+    llms,
+    robotsRaw,
+  };
 }
 
 async function readSitemap(url, deadline = null) {
@@ -116,8 +155,9 @@ async function readSitemap(url, deadline = null) {
 }
 
 export async function discoverSitemaps(baseUrl, robotsRaw = "", deadline = null) {
+  const declaredInRobots = robotsSitemaps(robotsRaw, baseUrl);
   const candidates = unique([
-    ...robotsSitemaps(robotsRaw, baseUrl),
+    ...declaredInRobots,
     new URL("/sitemap.xml", baseUrl).toString(),
     new URL("/sitemap_index.xml", baseUrl).toString(),
     new URL("/sitemap.xml.gz", baseUrl).toString(),
@@ -132,20 +172,39 @@ export async function discoverSitemaps(baseUrl, robotsRaw = "", deadline = null)
       errors.push({ url: queue[0] || baseUrl, error: "Scan deadline reached during sitemap discovery." });
       break;
     }
-    const sitemapUrl = queue.shift();
-    if (!sitemapUrl || visited.has(sitemapUrl)) continue;
-    visited.add(sitemapUrl);
-    try {
-      const document = await readSitemap(sitemapUrl, deadline);
+    const batch = [];
+    while (queue.length && batch.length < 8 && visited.size + batch.length < SITEMAP_LIMIT) {
+      const sitemapUrl = queue.shift();
+      if (sitemapUrl && !visited.has(sitemapUrl) && !batch.includes(sitemapUrl)) batch.push(sitemapUrl);
+    }
+    batch.forEach((url) => visited.add(url));
+    const results = await Promise.all(batch.map(async (sitemapUrl) => {
+      try {
+        return { sitemapUrl, document: await readSitemap(sitemapUrl, deadline) };
+      } catch (error) {
+        return { sitemapUrl, error };
+      }
+    }));
+    for (const result of results) {
+      if (result.error) {
+        errors.push({ url: result.sitemapUrl, error: result.error.message });
+        continue;
+      }
+      const { sitemapUrl, document } = result;
       documents.push({ url: sitemapUrl, type: document.type, urlCount: document.urls.length });
       urls.push(...document.urls);
       queue.push(...document.childSitemaps.map((item) => absoluteUrl(item, sitemapUrl)).filter(Boolean));
-    } catch (error) {
-      errors.push({ url: sitemapUrl, error: error.message });
     }
   }
   const deduped = [...new Map(urls.map((item) => [item.url, item])).values()];
-  return { documents, urls: deduped, errors, declaredInRobots: robotsSitemaps(robotsRaw, baseUrl), truncated: queue.length > 0 };
+  return {
+    documents,
+    urls: deduped,
+    errors,
+    declaredInRobots,
+    status: documents.length ? "verified" : declaredInRobots.length ? "declared_unverified" : "missing",
+    truncated: queue.length > 0,
+  };
 }
 
 function pageRole(url) {
@@ -511,19 +570,22 @@ async function renderPages(urls, deadline = null) {
   try {
     browser = await launchBrowser();
     const output = new Map();
-    for (const url of urls.slice(0, RENDER_LIMIT)) {
-      if (deadline && Date.now() >= deadline - 2500) break;
+    await mapWithConcurrency(urls.slice(0, RENDER_LIMIT), 2, async (url) => {
+      if (deadline && Date.now() >= deadline - 2500) return;
+      let page;
       try {
-        const page = await browser.newPage();
+        page = await browser.newPage();
         await page.setUserAgent(BROWSER_AGENT);
         const timeout = deadline ? Math.max(1000, Math.min(TIMEOUT, deadline - Date.now() - 1500)) : TIMEOUT;
         await page.goto(url, { waitUntil: "domcontentloaded", timeout });
         await page.waitForNetworkIdle({ idleTime: 400, timeout: 2000 }).catch(() => {});
         const result = await page.evaluate(() => ({ html: document.documentElement.outerHTML, text: document.body?.innerText || "", title: document.title }));
         output.set(url, result);
-        await page.close();
-      } catch {}
-    }
+      } catch {
+      } finally {
+        if (page) await page.close().catch(() => {});
+      }
+    });
     return output;
   } catch {
     return new Map();
@@ -638,13 +700,14 @@ export function buildEntityAnalysis(pages, profile = "saas") {
 }
 
 function buildCategories(pages, robots, sitemap, performance, entityAnalysis, metadataAnalysis, contentAnalysis) {
-  const indexable = pages.filter((page) => page.indexable).length;
-  const schema = average(pages.map((page) => page.schema.score), 0);
+  const measuredPages = pages.filter((page) => Number.isFinite(page.status));
+  const indexable = measuredPages.filter((page) => page.indexable).length;
+  const schema = average(measuredPages.map((page) => page.schema.score), 0);
   const meta = metadataAnalysis.score;
-  const rawContent = average(pages.map((page) => clampScore((page.raw.wordCount / 500) * 100)));
-  const jsSafe = average(pages.map((page) => page.rendered.jsDependentPercent == null ? 60 : 100 - page.rendered.jsDependentPercent), 60);
-  const crawlability = clampScore((indexable / Math.max(pages.length, 1)) * 60 + (robots?.score || 0) * 0.25 + (sitemap.urls.length ? 15 : 0));
-  const technicalSeo = clampScore(meta * 0.45 + schema * 0.3 + (pages.filter((page) => page.canonical && !page.canonicalConflict).length / Math.max(pages.length, 1)) * 25);
+  const rawContent = average(measuredPages.map((page) => clampScore((page.raw.wordCount / 500) * 100)));
+  const jsSafe = average(measuredPages.map((page) => page.rendered.jsDependentPercent == null ? 60 : 100 - page.rendered.jsDependentPercent), 60);
+  const crawlability = clampScore((indexable / Math.max(measuredPages.length, 1)) * 60 + (robots?.score || 0) * 0.25 + (sitemap.urls.length ? 15 : 0));
+  const technicalSeo = clampScore(meta * 0.45 + schema * 0.3 + (measuredPages.filter((page) => page.canonical && !page.canonicalConflict).length / Math.max(measuredPages.length, 1)) * 25);
   const entitySubscores = [entityAnalysis.entityIdentity.score, entityAnalysis.entityConnections.score, entityAnalysis.brandNameConsistency.score, entityAnalysis.napConsistency.score].filter(Number.isFinite);
   const entityConfidence = average(entitySubscores, 0);
   const measuredPerformance = performance?.fallback || performance?.skipped ? null : performance?.performance;
@@ -657,15 +720,16 @@ function buildCategories(pages, robots, sitemap, performance, entityAnalysis, me
   };
 }
 
-export async function runSiteAudit(baseUrl, { profile = "saas", robots = null, performance = null, homepageInternalUrls = [], deadline = null } = {}) {
+export async function runSiteAudit(baseUrl, { profile = "saas", robots = null, performance = null, homepageInternalUrls = [], sitemapDiscovery = null, deadline = null } = {}) {
   const startedAt = Date.now();
   const discoveryFiles = await analyzeDiscoveryFiles(baseUrl, robots, deadline);
-  const sitemap = await discoverSitemaps(baseUrl, discoveryFiles.robotsRaw, deadline);
+  const sitemap = await Promise.resolve(sitemapDiscovery || discoverSitemaps(baseUrl, discoveryFiles.robotsRaw, deadline));
   const selectedUrls = selectRepresentativeUrls(baseUrl, sitemap.urls.map((item) => item.url), homepageInternalUrls);
-  const responses = await Promise.all(selectedUrls.map(async (url) => {
-    try { return { url, response: await get(url, { deadline }) }; }
+  const pageHeaders = robots?.scannerBlocked ? { "User-Agent": BROWSER_AGENT } : {};
+  const responses = await mapWithConcurrency(selectedUrls, 3, async (url) => {
+    try { return { url, response: await get(url, { deadline, headers: pageHeaders }) }; }
     catch (error) { return { url, error: error.message }; }
-  }));
+  });
   const renderable = responses.filter((item) => item.response?.status < 400).map((item) => item.response.finalUrl || item.url);
   const rendered = await renderPages(renderable, deadline);
   const pages = responses.map((item) => item.response ? analyzePageResponse(item.response, item.url, rendered.get(item.response.finalUrl || item.url)) : ({
@@ -677,7 +741,8 @@ export async function runSiteAudit(baseUrl, { profile = "saas", robots = null, p
   const metadataAnalysis = buildMetadataAnalysis(pages);
   const contentAnalysis = buildContentAnalysis(pages);
   const entityAnalysis = buildEntityAnalysis(pages, detectedProfile.value);
-  const categoryScores = buildCategories(pages, robots, sitemap, performance, entityAnalysis, metadataAnalysis, contentAnalysis);
+  const resolvedPerformance = await Promise.resolve(performance);
+  const categoryScores = buildCategories(pages, robots, sitemap, resolvedPerformance, entityAnalysis, metadataAnalysis, contentAnalysis);
   const measuredCategories = Object.fromEntries(Object.entries(categoryScores).map(([key, value]) => [key, { score: value, measured: value != null }]));
   const siteWideScore = profileAwareScore(categoryScores, detectedProfile.value);
   const discoveredInternal = unique(pages.flatMap((page) => page.internalLinks || []));
@@ -687,23 +752,23 @@ export async function runSiteAudit(baseUrl, { profile = "saas", robots = null, p
   const invalidLastmod = sitemap.urls.filter((item) => item.lastmod && (Number.isNaN(Date.parse(item.lastmod)) || Date.parse(item.lastmod) > Date.now() + 86400000)).slice(0, 20);
   const pageChecks = pages.flatMap((page) => page.findings || []);
   const diagnosticChecks = [
-    { id: "robots", category: "crawlability", label: "robots.txt", status: discoveryFiles.robots.exists ? "pass" : "fail", measured: true, url: discoveryFiles.robots.url, element: "HTTP response", evidence: discoveryFiles.robots.exists ? `HTTP ${discoveryFiles.robots.status}; ${discoveryFiles.robots.bots.length} crawler policies evaluated` : `robots.txt unavailable; HTTP ${discoveryFiles.robots.status ?? "unknown"}`, expected: "Public robots.txt with intentional crawler rules" },
-    { id: "sitemap", category: "crawlability", label: "Sitemap discovery", status: sitemap.documents.length ? "pass" : "fail", measured: true, url: baseUrl, element: "robots.txt Sitemap directives and common sitemap paths", evidence: `${sitemap.documents.length} sitemap documents and ${sitemap.urls.length} URLs discovered`, expected: "At least one valid sitemap document" },
+    { id: "robots", category: "crawlability", label: "robots.txt", status: discoveryFiles.robots.exists ? "pass" : "fail", measured: true, url: discoveryFiles.robots.url, element: "HTTP response", evidence: discoveryFiles.robots.exists ? `${discoveryFiles.robots.usedBrowserFallback ? `Initial HTTP ${discoveryFiles.robots.scannerStatus}; recovered with browser fallback. ` : ""}HTTP ${discoveryFiles.robots.status}; ${discoveryFiles.robots.bots.length} crawler policies evaluated` : `robots.txt unavailable; HTTP ${discoveryFiles.robots.status ?? "unknown"}`, expected: "Public robots.txt with intentional crawler rules" },
+    { id: "sitemap", category: "crawlability", label: "Sitemap discovery", status: sitemap.documents.length ? "pass" : sitemap.declaredInRobots.length ? "warning" : "fail", measured: true, url: sitemap.declaredInRobots[0] || baseUrl, element: "robots.txt Sitemap directives and common sitemap paths", evidence: sitemap.documents.length ? `${sitemap.documents.length} sitemap documents and ${sitemap.urls.length} URLs discovered` : sitemap.declaredInRobots.length ? `Declared in robots.txt but could not be verified during this scan: ${sitemap.declaredInRobots[0]}` : "No sitemap declaration or valid common sitemap path found", expected: "At least one valid sitemap document" },
     { id: "llms", category: "agentReadiness", label: "llms.txt", status: discoveryFiles.llms.exists ? (discoveryFiles.llms.valid ? "pass" : "warning") : "warning", measured: true, url: new URL("/llms.txt", baseUrl).toString(), element: "HTTP response and text format", evidence: discoveryFiles.llms.exists ? `HTTP ${discoveryFiles.llms.status}; format ${discoveryFiles.llms.valid ? "recognized" : "unrecognized"}` : "Optional llms.txt not found", expected: "Optional: concise Markdown index of important resources", optional: true },
     { id: "rendering", category: "contentReadiness", label: "Browser rendering", status: pages.some((page) => page.rendered?.wordCount != null) ? "pass" : "not_measured", measured: pages.some((page) => page.rendered?.wordCount != null), url: baseUrl, element: "Rendered DOM", evidence: `${pages.filter((page) => page.rendered?.wordCount != null).length} of ${pages.length} pages rendered`, expected: "Rendered sample available for raw/rendered comparison" },
-    { id: "lighthouse", category: "performance", label: "Lighthouse", status: Number.isFinite(performance?.performance) ? "pass" : "not_measured", measured: Number.isFinite(performance?.performance), url: baseUrl, element: "Lighthouse categories", evidence: Number.isFinite(performance?.performance) ? `Performance ${performance.performance}; accessibility ${performance.accessibility}` : (performance?.error || "Lighthouse not configured"), expected: "Successful Lighthouse run" },
+    { id: "lighthouse", category: "performance", label: "Lighthouse", status: Number.isFinite(resolvedPerformance?.performance) ? "pass" : "not_measured", measured: Number.isFinite(resolvedPerformance?.performance), url: baseUrl, element: "Lighthouse categories", evidence: Number.isFinite(resolvedPerformance?.performance) ? `Performance ${resolvedPerformance.performance}; accessibility ${resolvedPerformance.accessibility}` : (resolvedPerformance?.error || "Lighthouse not configured"), expected: "Successful Lighthouse run" },
   ];
   const successfulPages = pages.filter((page) => Number.isFinite(page.status) && page.status < 400).length;
   const renderedPages = pages.filter((page) => page.rendered?.wordCount != null).length;
   const coverageRatio = successfulPages / Math.max(selectedUrls.length, 1);
-  const confidencePoints = (coverageRatio * 55) + (sitemap.documents.length ? 15 : 0) + (discoveryFiles.robots.exists ? 10 : 0) + (renderedPages ? 15 : 0) + (Number.isFinite(performance?.performance) ? 5 : 0);
+  const confidencePoints = (coverageRatio * 55) + (sitemap.documents.length ? 15 : 0) + (discoveryFiles.robots.exists ? 10 : 0) + (renderedPages ? 15 : 0) + (Number.isFinite(resolvedPerformance?.performance) ? 5 : 0);
   const confidenceScore = clampScore(confidencePoints);
   const confidence = { score: confidenceScore, level: confidenceScore >= 85 ? "high" : confidenceScore >= 60 ? "medium" : confidenceScore >= 35 ? "low" : "incomplete", reasons: [
     `${successfulPages}/${selectedUrls.length} selected pages fetched successfully`,
     `${renderedPages}/${pages.length} pages browser-rendered`,
     sitemap.documents.length ? `${sitemap.documents.length} sitemap documents processed` : "No valid sitemap processed",
     discoveryFiles.robots.exists ? "robots.txt evaluated" : "robots.txt unavailable",
-    Number.isFinite(performance?.performance) ? "Lighthouse measured" : "Lighthouse not measured",
+    Number.isFinite(resolvedPerformance?.performance) ? "Lighthouse measured" : "Lighthouse not measured",
   ] };
   return {
     profile: detectedProfile, siteWideScore, categoryScores: measuredCategories, pages,

@@ -502,8 +502,11 @@ function ReportDataTable({ rows, columns, renderRow, getKey, searchText, minWidt
   );
 }
 
-function LoadingScan({ step }) {
-  const progress = ((step + 1) / scanSteps.length) * 100;
+function LoadingScan({ step, elapsed = 0 }) {
+  const progress = Math.min(92, 8 + (elapsed * 1.05));
+  const activeLabel = elapsed > 18
+    ? "Scanning representative pages and validating evidence..."
+    : scanSteps[step];
   return (
     <motion.div
       initial={{ opacity: 0, y: 24, scale: 0.98 }}
@@ -515,7 +518,10 @@ function LoadingScan({ step }) {
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#8B9C8C]">Scanning live</p>
-          <h3 className="mt-2 text-base font-semibold leading-6 text-white">{scanSteps[step]}</h3>
+          <h3 className="mt-2 text-base font-semibold leading-6 text-white">{activeLabel}</h3>
+          <p className="mt-1 text-xs text-[#8B9C8C]">
+            {elapsed < 30 ? "Most scans finish in 30–90 seconds." : "Deep site checks can take a little longer. Please keep this tab open."}
+          </p>
         </div>
         <div className={styles.scanSpinner} />
       </div>
@@ -532,6 +538,10 @@ function LoadingScan({ step }) {
             {label}
           </div>
         ))}
+      </div>
+      <div className="mt-3 flex items-center justify-between text-[11px] text-[#8B9C8C]/75">
+        <span>{elapsed}s elapsed</span>
+        <span>{Math.round(progress)}% processed</span>
       </div>
     </motion.div>
   );
@@ -1302,7 +1312,7 @@ function TechnicalAuditSection({ report }) {
     ...(issue.missingRequired || []).map((property) => `${issue.type}.${property} (required)`),
     ...(issue.missingRecommended || []).map((property) => `${issue.type}.${property}`),
   ])))];
-  const measuredSchemaPages = (report.siteAudit?.pages || []).filter((page) => Number.isFinite(page.schema?.score));
+  const measuredSchemaPages = (report.siteAudit?.pages || []).filter((page) => Number.isFinite(page.status) && Number.isFinite(page.schema?.score));
   const schemaAuditScore = measuredSchemaPages.length
     ? Math.round(measuredSchemaPages.reduce((sum, page) => sum + page.schema.score, 0) / measuredSchemaPages.length)
     : report.schema.score;
@@ -1375,6 +1385,7 @@ function TechnicalAuditSection({ report }) {
       score: report.robots.score,
       lines: [
         `robots.txt: ${report.robots.exists ? "Found" : "Missing"}`,
+        ...(report.robots.scannerBlocked ? [`Scanner access: HTTP ${report.robots.scannerStatus}; verified with browser fallback`] : []),
         `Blocked bots: ${report.robots.blockedBots.join(", ") || "None detected"}`,
         `Sitemap URLs: ${report.sitemap.urlCount}`,
       ],
@@ -1647,6 +1658,7 @@ async function getApproxLocationForScan() {
 export default function Home() {
   const [isScanning, setIsScanning] = useState(false);
   const [step, setStep] = useState(0);
+  const [scanElapsed, setScanElapsed] = useState(0);
   const [scanFailure, setScanFailure] = useState(null);
   const router = useRouter();
   const { register, handleSubmit, control, formState: { errors } } = useForm({ defaultValues: { url: "", profile: "" } });
@@ -1660,7 +1672,9 @@ export default function Home() {
     setScanFailure(null);
     setIsScanning(true);
     setStep(0);
-    const timer = setInterval(() => setStep((current) => Math.min(current + 1, scanSteps.length - 1)), 1400);
+    setScanElapsed(0);
+    const timer = setInterval(() => setStep((current) => Math.min(current + 1, scanSteps.length - 1)), 5500);
+    const elapsedTimer = setInterval(() => setScanElapsed((current) => current + 1), 1000);
     try {
       const [storedEmail, approxLocation] = await Promise.all([
         Promise.resolve(findStoredEmail()),
@@ -1687,6 +1701,7 @@ export default function Home() {
       setScanFailure((current) => current || { title: "Scan could not be completed", message: friendlyMessage, httpStatus: null, score: null });
     } finally {
       clearInterval(timer);
+      clearInterval(elapsedTimer);
       setIsScanning(false);
     }
   }
@@ -1825,7 +1840,7 @@ export default function Home() {
         </motion.div>
 
 
-        <AnimatePresence>{isScanning && <LoadingScan step={step} />}</AnimatePresence>
+        <AnimatePresence>{isScanning && <LoadingScan step={step} elapsed={scanElapsed} />}</AnimatePresence>
       </section>
 
       <section className={`${styles.pageContainer} relative z-10 mx-auto px-5 pb-12 pt-4 sm:px-8`} id="features">
