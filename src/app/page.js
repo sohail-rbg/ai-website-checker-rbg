@@ -1,8 +1,8 @@
 import HomeClient from "./_components/home/HomeClient";
-import { createPageMetadata } from "./seo";
+import { createPageMetadata, homeTitle } from "./seo";
 
 export const metadata = createPageMetadata({
-  title: "ScanSiteAI – Free AI Website Readiness Checker",
+  title: homeTitle,
   description:
     "See exactly why ChatGPT, Gemini, and Google AI Overviews might be skipping your site. Free live scan, no signup, results in minutes.",
   path: "/",

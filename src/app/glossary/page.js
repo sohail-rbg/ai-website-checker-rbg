@@ -1,8 +1,8 @@
 import PublicInfoPage from "../_components/PublicInfoPage";
-import { createPageMetadata } from "../seo";
+import { createPageMetadata, pageTitles } from "../seo";
 
 export const metadata = createPageMetadata({
-  title: "AI Website Readiness Glossary",
+  title: pageTitles.glossary,
   description: "ScanSiteAI glossary of AI website readiness, answer engine optimization and LLM search visibility terms.",
   path: "/glossary",
   keywords: ["AI readiness glossary", "answer engine optimization terms", "LLM SEO definitions", "EEAT glossary"],

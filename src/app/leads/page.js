@@ -2,12 +2,12 @@ import Link from "next/link";
 import { connectToDatabase } from "@/lib/db";
 import Lead from "@/models/Lead";
 import Submission from "@/models/Submission";
-import { createPageMetadata } from "../seo";
+import { createPageMetadata, pageTitles } from "../seo";
 import LeadsDataTable from "./LeadsDataTable";
 
 export const runtime = "nodejs";
 export const metadata = createPageMetadata({
-  title: "Protected ScanSiteAI Leads",
+  title: pageTitles.leads,
   description: "Protected lead management view for ScanSiteAI report requests, demo follow-ups and complete report links.",
   path: "/leads",
   keywords: ["ScanSiteAI leads", "AI report requests", "protected lead inbox"],

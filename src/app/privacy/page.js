@@ -1,8 +1,8 @@
 import PublicInfoPage from "../_components/PublicInfoPage";
-import { createPageMetadata } from "../seo";
+import { createPageMetadata, pageTitles } from "../seo";
 
 export const metadata = createPageMetadata({
-  title: "ScanSiteAI Privacy Policy",
+  title: pageTitles.privacy,
   description: "Privacy policy for ScanSiteAI lead capture, demo requests and AI readiness report email delivery.",
   path: "/privacy",
   keywords: ["ScanSiteAI privacy", "AI audit privacy policy", "report email privacy", "website scan data policy"],

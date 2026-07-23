@@ -1,8 +1,8 @@
 import PublicInfoPage from "../_components/PublicInfoPage";
-import { createPageMetadata } from "../seo";
+import { createPageMetadata, pageTitles } from "../seo";
 
 export const metadata = createPageMetadata({
-  title: "Comparison Page Guidance for AI Search",
+  title: pageTitles.comparisonPages,
   description: "ScanSiteAI guidance for comparison pages that improve AI search visibility and answer-engine context.",
   path: "/comparison-pages",
   keywords: ["comparison page SEO", "AI answer comparison pages", "LLM product comparison content"],

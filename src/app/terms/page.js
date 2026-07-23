@@ -1,8 +1,8 @@
 import PublicInfoPage from "../_components/PublicInfoPage";
-import { createPageMetadata } from "../seo";
+import { createPageMetadata, pageTitles } from "../seo";
 
 export const metadata = createPageMetadata({
-  title: "ScanSiteAI Terms",
+  title: pageTitles.terms,
   description: "Terms and conditions for using ScanSiteAI to evaluate public websites for AI readiness.",
   path: "/terms",
   keywords: ["ScanSiteAI terms", "AI website checker terms", "website audit terms", "AI readiness tool conditions"],

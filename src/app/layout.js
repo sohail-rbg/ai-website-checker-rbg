@@ -2,7 +2,7 @@ import { Geist_Mono, Space_Grotesk } from "next/font/google";
 import Script from "next/script";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
-import { contactEmail, defaultDescription, defaultKeywords, siteName, siteUrl } from "./seo";
+import { contactEmail, defaultDescription, defaultKeywords, pageTitles, siteName, siteUrl } from "./seo";
 import siteSchema from "../lib/siteSchema.cjs";
 import "./globals.css";
 
@@ -22,7 +22,7 @@ export const metadata = {
   metadataBase: new URL(siteUrl),
   applicationName: siteName,
   title: {
-    default: "ScanSiteAI – Free AI Website Readiness Checker",
+    default: pageTitles.home,
     template: "%s | ScanSiteAI",
   },
   description: defaultDescription,
@@ -47,7 +47,7 @@ export const metadata = {
     locale: "en_US",
     url: "/",
     siteName,
-    title: "ScanSiteAI – Free AI Website Readiness Checker",
+    title: pageTitles.home,
     description: defaultDescription,
     images: [
       {
@@ -60,7 +60,7 @@ export const metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "ScanSiteAI – Free AI Website Readiness Checker",
+    title: pageTitles.home,
     description: defaultDescription,
     images: ["/logo.png"],
   },

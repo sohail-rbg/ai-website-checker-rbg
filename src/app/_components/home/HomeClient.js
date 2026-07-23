@@ -36,6 +36,7 @@ import {
 import SiteHeader from "../SiteHeader";
 import SiteFooter from "../SiteFooter";
 import { AmCheckStateChart, AmOverallScoreChart, AmRadarChart } from "../charts/AmCharts";
+import { homeH1 } from "../../seo";
 import styles from "../../page.module.css";
 
 const scanSteps = [
@@ -1709,8 +1710,8 @@ export default function Home() {
             AI crawler, LLM and answer-engine readiness audit
           </div>
           <h1 className={`${styles.heroTitle} mx-auto max-w-5xl text-[2.6rem] font-semibold leading-[0.95] tracking-tight text-white sm:text-5xl lg:text-7xl`}>
-            Is Your Website
-            <span className={styles.titleAccent}> Ready for AI?</span>
+            {homeH1.split(" AI Readiness")[0]}
+            <span className={styles.titleAccent}> AI Readiness</span>
           </h1>
           <div className={styles.titleRule} />
           <p className="mx-auto mt-6 max-w-3xl text-base leading-7 text-[#c7d0c6] sm:mt-7 sm:text-xl sm:leading-8">

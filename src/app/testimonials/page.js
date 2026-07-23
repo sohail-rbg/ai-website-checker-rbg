@@ -3,7 +3,7 @@ import Link from "next/link";
 import SiteFooter from "../_components/SiteFooter";
 import SiteHeader from "../_components/SiteHeader";
 import styles from "../page.module.css";
-import { createPageMetadata } from "../seo";
+import { createPageMetadata, pageTitles } from "../seo";
 
 const testimonials = [
   {
@@ -44,7 +44,7 @@ const testimonials = [
 ];
 
 export const metadata = createPageMetadata({
-  title: "ScanSiteAI Testimonials",
+  title: pageTitles.testimonials,
   description: "Read testimonials from business owners, consultants, agencies and founders using ScanSiteAI to improve AI search readiness.",
   path: "/testimonials",
   keywords: ["ScanSiteAI testimonials", "AI website checker reviews", "AI search readiness testimonials", "LLM audit feedback"],

@@ -1,6 +1,29 @@
 export const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://scansiteai.com";
 export const siteName = "ScanSiteAI";
 export const contactEmail = "info@scansiteai.com";
+export const pageTitles = Object.freeze({
+  home: "AI Website Readiness Checker | ScanSiteAI",
+  about: "How ScanSiteAI Helps Websites Improve AI Readiness",
+  blog: "AI Search Visibility Insights and Guides | ScanSiteAI",
+  bookDemo: "Book an AI Website Readiness Demo | ScanSiteAI",
+  caseStudies: "AI Readiness Improvement Case Studies | ScanSiteAI",
+  comingSoon: "ScanSiteAI Account Login - Coming Soon",
+  comparisonPages: "AI Search Comparison Page Guidance | ScanSiteAI",
+  contact: "Contact ScanSiteAI for AI Readiness Support",
+  documentation: "How the AI Readiness Scan Works | ScanSiteAI",
+  faq: "AI Website Readiness FAQ | ScanSiteAI",
+  glossary: "AI Search Visibility Glossary | ScanSiteAI",
+  leads: "Submitted Scan Report Emails | ScanSiteAI Admin",
+  pricing: "Free AI Website Readiness Scan Pricing | ScanSiteAI",
+  privacy: "ScanSiteAI Website Scan Privacy Policy",
+  resources: "AI Website Readiness Resources | ScanSiteAI",
+  scanReport: "AI Website Readiness Scan Report | ScanSiteAI",
+  scans: "Saved Website Scans | ScanSiteAI Admin",
+  terms: "ScanSiteAI Website Scanner Terms and Conditions",
+  testimonials: "AI Website Readiness Testimonials | ScanSiteAI",
+});
+export const homeTitle = pageTitles.home;
+export const homeH1 = "Check Your Website's AI Readiness";
 
 export const defaultDescription =
   "See exactly why ChatGPT, Gemini, and Google AI Overviews might be skipping your site. Free live scan, no signup, results in minutes.";

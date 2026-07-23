@@ -190,10 +190,16 @@ export async function generateMetadata({ params }) {
   }
 
   const website = lead.website || "Website";
+  let websiteLabel = "Website";
+  try {
+    websiteLabel = new URL(website).hostname.replace(/^www\./, "").slice(0, 32) || "Website";
+  } catch {
+    websiteLabel = String(website).replace(/^https?:\/\//, "").split("/")[0].slice(0, 32) || "Website";
+  }
   const score = Number.isFinite(Number(lead.overallScore)) ? `${lead.overallScore}/100` : "available";
 
   return createPageMetadata({
-    title: `${website} AI Readiness Report`,
+    title: `${websiteLabel} AI Readiness Report | ScanSiteAI`,
     description: `ScanSiteAI readiness report for ${website}. Overall score ${score}, with AI platform scores, technical checks and prioritized recommendations.`,
     path: `/report/${id}`,
     keywords: ["ScanSiteAI report", `${website} AI readiness report`, "AI platform scores", "technical AI audit"],

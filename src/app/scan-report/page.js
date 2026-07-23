@@ -1,8 +1,8 @@
 import ScanReportClient from "./ScanReportClient";
-import { createPageMetadata } from "../seo";
+import { createPageMetadata, pageTitles } from "../seo";
 
 export const metadata = createPageMetadata({
-  title: "ScanSiteAI Scan Report",
+  title: pageTitles.scanReport,
   description:
     "View a ScanSiteAI report with overall score, platform readiness, technical checks, recommendations and email delivery.",
   path: "/scan-report",

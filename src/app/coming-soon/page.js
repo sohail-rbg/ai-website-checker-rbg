@@ -1,8 +1,8 @@
 import PublicInfoPage from "../_components/PublicInfoPage";
-import { createPageMetadata } from "../seo";
+import { createPageMetadata, pageTitles } from "../seo";
 
 export const metadata = createPageMetadata({
-  title: "ScanSiteAI Login Coming Soon",
+  title: pageTitles.comingSoon,
   description: "Login access for ScanSiteAI is coming soon while the MVP focuses on live scans, report delivery and demo requests.",
   path: "/coming-soon",
   keywords: ["ScanSiteAI login", "AI readiness account", "AI audit dashboard coming soon"],

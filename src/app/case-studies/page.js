@@ -1,8 +1,8 @@
 import PublicInfoPage from "../_components/PublicInfoPage";
-import { createPageMetadata } from "../seo";
+import { createPageMetadata, pageTitles } from "../seo";
 
 export const metadata = createPageMetadata({
-  title: "AI Readiness Case Studies",
+  title: pageTitles.caseStudies,
   description: "Case study themes for ScanSiteAI readiness improvements and LLM-friendly website structure.",
   path: "/case-studies",
   keywords: ["AI readiness case studies", "LLM website improvements", "schema implementation examples"],

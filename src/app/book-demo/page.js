@@ -3,11 +3,11 @@ import { Toaster } from "react-hot-toast";
 import SiteFooter from "../_components/SiteFooter";
 import SiteHeader from "../_components/SiteHeader";
 import styles from "../page.module.css";
-import { createPageMetadata } from "../seo";
+import { createPageMetadata, pageTitles } from "../seo";
 import DemoForm from "./DemoForm";
 
 export const metadata = createPageMetadata({
-  title: "Book a ScanSiteAI Demo",
+  title: pageTitles.bookDemo,
   description: "Book a ScanSiteAI demo to review your AI website readiness score, LLM visibility gaps and recommended fixes.",
   path: "/book-demo",
   keywords: ["book AI readiness demo", "ScanSiteAI demo", "LLM visibility consultation", "AI website audit call"],

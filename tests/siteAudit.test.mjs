@@ -6,6 +6,7 @@ import { PROFILE_WEIGHTS, profileAwareScore } from "../src/lib/scoring.js";
 import { decodeHtmlText, detectIncompleteJavascriptShell, detectNonOperationalHomepage, extractEntities, groupAuditFindings, isPreviewErrorPage, isTransientFailure, networkFailurePhase, normalizeEmail, normalizeObfuscatedContacts, validateLighthouseResult } from "../src/lib/scanner.js";
 import { resolvePublicOrigin } from "../src/lib/publicOrigin.js";
 import { summarizeInspection, urlBelongsToSearchConsoleProperty } from "../src/lib/externalVerification.js";
+import { homeH1, homeTitle, pageTitles } from "../src/app/seo.js";
 
 test("profile weights are normalized to 100", () => {
   for (const weights of Object.values(PROFILE_WEIGHTS)) {
@@ -226,6 +227,28 @@ test("metadata quality detects generic, short, stuffed, misaligned, and truncate
   assert.ok(result.description.stuffing.length > 0);
   assert.equal(result.description.truncated, true);
   assert.equal(result.checks.descriptionRelevant, false);
+});
+
+test("homepage title and H1 stay aligned around AI website readiness", () => {
+  const result = analyzeMetadataQuality({
+    title: homeTitle,
+    description: "Scan your website for AI readiness, structured data, crawler access, entity clarity, content quality, and search visibility.",
+    h1: [homeH1],
+    text: homeH1,
+  });
+  assert.equal(result.checks.titleAligned, true);
+  assert.ok(result.title.h1AlignmentPercent >= 50);
+});
+
+test("every configured page title has a useful unique search-result length", () => {
+  const titles = Object.values(pageTitles);
+  assert.equal(new Set(titles).size, titles.length);
+  for (const title of titles) {
+    const result = analyzeMetadataQuality({ title, description: "", h1: [], text: "" });
+    assert.equal(result.checks.titleUsefulLength, true, `Unexpected title length: ${title}`);
+    assert.equal(result.checks.titlePixelFit, true, `Title is too wide: ${title}`);
+    assert.equal(result.checks.titleNatural, true, `Title appears stuffed: ${title}`);
+  }
 });
 
 test("cross-page metadata analysis marks duplicate titles and descriptions on affected URLs", () => {

@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { connectToDatabase } from "@/lib/db";
 import Scan from "@/models/Scan";
-import { createPageMetadata } from "../seo";
+import { createPageMetadata, pageTitles } from "../seo";
 import ScansDataTable from "./ScansDataTable";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const metadata = createPageMetadata({
-  title: "Protected ScanSiteAI Scans",
+  title: pageTitles.scans,
   description: "Protected admin view for saved ScanSiteAI website scan records.",
   path: "/scans",
   keywords: ["ScanSiteAI scans", "protected scan history", "AI readiness scan records"],
