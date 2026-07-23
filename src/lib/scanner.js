@@ -128,6 +128,32 @@ function addRecommendation(items, rec) {
   });
 }
 
+export function groupAuditFindings(findings = [], seenRecommendationKeys = new Set()) {
+  const grouped = new Map();
+  for (const finding of findings.filter((item) => ["fail", "warning", "unknown"].includes(item.status))) {
+    const pageKey = `${finding.check}|${finding.url}`;
+    if (seenRecommendationKeys.has(pageKey)) continue;
+    seenRecommendationKeys.add(pageKey);
+    const actionKey = JSON.stringify([
+      finding.check,
+      finding.status,
+      finding.element,
+      finding.evidence,
+      finding.fix,
+    ]);
+    const existing = grouped.get(actionKey);
+    if (existing) {
+      if (finding.url && !existing.affectedUrls.includes(finding.url)) existing.affectedUrls.push(finding.url);
+      continue;
+    }
+    grouped.set(actionKey, {
+      ...finding,
+      affectedUrls: finding.url ? [finding.url] : [],
+    });
+  }
+  return [...grouped.values()];
+}
+
 function timeoutAfter(ms, message) {
   return new Promise((_, reject) => {
     setTimeout(() => reject(new Error(message)), ms);
@@ -934,6 +960,19 @@ async function runLighthouse(url, initialResponse) {
   }
 }
 
+export function isPreviewErrorPage({ title = "", text = "", httpStatus = null } = {}) {
+  if (Number.isFinite(httpStatus) && httpStatus >= 400) return true;
+  const content = `${title} ${text}`.replace(/\s+/g, " ").trim().toLowerCase();
+  return [
+    "application error: a client-side exception has occurred",
+    "application error: a server-side exception has occurred",
+    "internal server error",
+    "this page isn't working",
+    "there was a problem loading this page",
+    "something went wrong while loading this page",
+  ].some((message) => content.includes(message));
+}
+
 async function captureHomepagePreview(url) {
   let browser;
   const attempts = [];
@@ -952,8 +991,13 @@ async function captureHomepagePreview(url) {
         const response = await page.goto(url, { waitUntil: "domcontentloaded", timeout });
         await page.waitForNetworkIdle({ idleTime: 400, timeout: 1800 }).catch(() => {});
         await new Promise((resolve) => setTimeout(resolve, 350));
-        const image = await page.screenshot({ type: "jpeg", quality: 72, fullPage: false, encoding: "base64" });
         const title = await page.title().catch(() => "");
+        const text = await page.$eval("body", (element) => element.innerText || "").catch(() => "");
+        const httpStatus = response?.status() || null;
+        if (isPreviewErrorPage({ title, text, httpStatus })) {
+          throw new Error("The captured page displayed an application or HTTP error.");
+        }
+        const image = await page.screenshot({ type: "jpeg", quality: 72, fullPage: false, encoding: "base64" });
         attempts.push({ status: "success", httpStatus: response?.status() || null, durationMs: Date.now() - startedAt });
         return { image: `data:image/jpeg;base64,${image}`, title, width: 1280, height: 820, capturedAt: new Date().toISOString(), status: "captured", error: null, fallback: false, attempts };
       } catch (error) {
@@ -1321,13 +1365,11 @@ export async function scanWebsite(inputUrl, options = {}) {
       scoreEffect: Math.min(4, Math.max(0, 100 - siteAudit.siteWideScore)),
     });
   }
-  for (const finding of siteAudit.findings.filter((item) => ["fail", "warning", "unknown"].includes(item.status))) {
-    const key = `${finding.check}|${finding.url}`;
-    if (seenRecommendationKeys.has(key)) continue;
-    seenRecommendationKeys.add(key);
+  for (const finding of groupAuditFindings(siteAudit.findings, seenRecommendationKeys)) {
+    const affectedPageCount = finding.affectedUrls.length;
     recommendations.push({
       title: finding.check,
-      description: finding.evidence,
+      description: affectedPageCount > 1 ? `${finding.evidence} · ${affectedPageCount} affected pages` : finding.evidence,
       currentStatus: finding.status,
       whyAiCares: finding.check === "JavaScript dependency" ? "Important content absent from raw HTML may be harder or slower for crawlers to retrieve." : "This signal affects discovery, indexing, interpretation, or citation readiness.",
       howToFix: finding.fix,
@@ -1337,7 +1379,8 @@ export async function scanWebsite(inputUrl, options = {}) {
       priority: finding.status === "fail" ? 75 : 55,
       status: finding.status,
       confidence: finding.confidence,
-      affectedUrl: finding.url,
+      affectedUrl: finding.affectedUrls[0] || finding.url,
+      affectedUrls: finding.affectedUrls,
       evidence: finding.evidence,
       affectedElement: finding.element,
       businessImpact: "May reduce reliable crawl, index, or interpretation coverage for this page.",

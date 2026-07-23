@@ -97,7 +97,6 @@ function buildReportEmail({ website, overallScore, grade, topImprovements, repor
     `Grade: ${grade || "N/A"}`,
     wantsCall ? "Call request: Yes" : "Call request: No",
     "",
-    `Open your hosted report: ${reportUrl}`,
     "Talk with a ScanSiteAI expert about these fixes.",
     `Schedule a focused 15-minute review: ${consultationUrl}`,
     "",
@@ -165,7 +164,6 @@ function buildReportEmail({ website, overallScore, grade, topImprovements, repor
                         <p style="margin:10px 0 0;color:#d9e1d8;font-size:14px;line-height:1.7">Turn the priority findings into a focused implementation plan during a 15-minute consultation.</p>
                         <table role="presentation" cellspacing="0" cellpadding="0" style="margin-top:18px">
                           <tr>
-                            <td style="padding:0 10px 8px 0"><a href="${escapeHtml(reportUrl)}" style="display:inline-block;border-radius:999px;background:#ffffff;color:#16382d;font-weight:800;text-decoration:none;padding:13px 20px">Open hosted report</a></td>
                             <td style="padding:0 0 8px"><a href="${consultationUrl}" style="display:inline-block;border-radius:999px;background:#9fe0a8;color:#020302;font-weight:800;text-decoration:none;padding:13px 20px">Contact an expert →</a></td>
                           </tr>
                         </table>

@@ -7,7 +7,6 @@ const routes = [
   ["/contact", 0.8],
   ["/book-demo", 0.8],
   ["/coming-soon", 0.4],
-  ["/scan-report", 0.3],
   ["/privacy", 0.5],
   ["/terms", 0.5],
   ["/resources", 0.7],

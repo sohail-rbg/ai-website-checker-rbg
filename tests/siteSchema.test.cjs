@@ -32,10 +32,25 @@ test("Service and Product nodes are top-level related graph entities", () => {
 
   assert.ok(service, "Service node should exist");
   assert.equal(service["@id"], "https://scansiteai.com/#service");
+  assert.equal(service.areaServed, "Worldwide");
+  assert.equal(service.offers["@type"], "Offer");
+  assert.equal(service.offers.price, "0");
+  assert.equal(service.offers.priceCurrency, "USD");
+  assert.equal(product.image, "https://scansiteai.com/logo.png");
   assert.deepEqual(product.isRelatedTo, [
     { "@id": "https://scansiteai.com/#webapp" },
     { "@id": "https://scansiteai.com/#service" },
   ]);
+});
+
+test("SoftwareApplication publishes supported product details without a fabricated rating", () => {
+  const software = graphNode("SoftwareApplication");
+
+  assert.ok(software, "SoftwareApplication node should exist");
+  assert.equal(software.image, "https://scansiteai.com/logo.png");
+  assert.equal(software.offers.price, "0");
+  assert.ok(software.featureList.includes("Structured data validation"));
+  assert.equal(software.aggregateRating, undefined);
 });
 
 test("Organization exposes contact and service relationship signals", () => {

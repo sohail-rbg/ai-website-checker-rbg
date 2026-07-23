@@ -1321,7 +1321,8 @@ function TechnicalAuditSection({ report }) {
       score: report.performance.performance,
       lines: report.performance.fallback
         ? [
-          "Estimated from live HTTP response",
+          "HTTP diagnostics measured",
+          "Lighthouse performance score unavailable",
           `Response time: ${report.performance.responseTimeMs}ms`,
           `HTML size: ${Math.round((report.performance.htmlBytes || 0) / 1024)}KB`,
         ]
@@ -1985,7 +1986,24 @@ export default function Home() {
         <SiteFooter className="relative z-10 mx-auto mt-8 w-full" />
       </section>
 
-     
+      <a
+        href="https://www.producthunt.com/products/scansite-ai?embed=true&utm_source=badge-featured&utm_medium=badge&utm_campaign=badge-scansite-ai"
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="View ScanSite AI on Product Hunt"
+        className="fixed bottom-3 left-3 z-40 block w-[190px] rounded-xl border border-white/10 bg-[#020806]/90 p-1.5 shadow-[0_14px_45px_rgba(0,0,0,.55)] backdrop-blur-md transition hover:-translate-y-0.5 hover:border-[#90ee9a]/35 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#90ee9a] sm:bottom-5 sm:left-5 sm:w-[250px]"
+      >
+        {/* Product Hunt supplies this badge as a remote SVG widget. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1191172&theme=dark&t=1784823675192"
+          alt="ScanSite AI - Make Your Website Visible to AI | Product Hunt"
+          width="250"
+          height="54"
+          loading="lazy"
+          className="block h-auto w-full"
+        />
+      </a>
     </main>
   );
 }

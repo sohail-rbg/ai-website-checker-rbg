@@ -47,8 +47,19 @@ function buildSiteJsonLd({ siteUrl, siteName, contactEmail, defaultDescription }
         applicationCategory: "SEOApplication",
         applicationSubCategory: "AI website readiness checker",
         operatingSystem: "Web",
+        browserRequirements: "Requires JavaScript and a modern web browser.",
         url: siteUrl,
+        image: `${siteUrl}/logo.png`,
+        screenshot: `${siteUrl}/logo.png`,
         description: defaultDescription,
+        featureList: [
+          "Multi-page website crawling",
+          "AI crawler access analysis",
+          "Structured data validation",
+          "Entity and trust-signal analysis",
+          "SEO metadata analysis",
+          "Prioritized website recommendations",
+        ],
         mainEntityOfPage: siteUrl,
         offers: {
           "@type": "Offer",
@@ -72,11 +83,21 @@ function buildSiteJsonLd({ siteUrl, siteName, contactEmail, defaultDescription }
         provider: {
           "@id": `${siteUrl}/#organization`,
         },
+        areaServed: "Worldwide",
+        offers: {
+          "@type": "Offer",
+          url: siteUrl,
+          price: "0",
+          priceCurrency: "USD",
+          availability: "https://schema.org/OnlineOnly",
+        },
       },
       {
         "@type": "Product",
         "@id": `${siteUrl}/#product`,
         name: siteName,
+        url: siteUrl,
+        image: `${siteUrl}/logo.png`,
         description: defaultDescription,
         mainEntityOfPage: siteUrl,
         isRelatedTo: [

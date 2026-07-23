@@ -220,11 +220,33 @@ function pageRole(url) {
   return rules.find(([, pattern]) => pattern.test(path))?.[0] || (path === "/" ? "homepage" : "other");
 }
 
+function isUtilityPage(url) {
+  try {
+    const firstSegment = new URL(url).pathname.toLowerCase().split("/").filter(Boolean)[0] || "";
+    return new Set([
+      "admin",
+      "account",
+      "cart",
+      "checkout",
+      "login",
+      "signin",
+      "signup",
+      "preview",
+      "report",
+      "scan-report",
+      "scans",
+      "leads",
+    ]).has(firstSegment);
+  } catch {
+    return true;
+  }
+}
+
 export function selectRepresentativeUrls(baseUrl, sitemapUrls = [], internalUrls = [], limit = PAGE_LIMIT) {
   const host = new URL(baseUrl).hostname;
   const candidates = unique([baseUrl, ...sitemapUrls, ...internalUrls])
     .map((value) => absoluteUrl(value, baseUrl))
-    .filter((value) => value && new URL(value).hostname === host && !/\.(?:jpg|jpeg|png|gif|svg|webp|avif|pdf|zip|xml)(?:\?|$)/i.test(value));
+    .filter((value) => value && new URL(value).hostname === host && !isUtilityPage(value) && !/\.(?:jpg|jpeg|png|gif|svg|webp|avif|pdf|zip|xml)(?:\?|$)/i.test(value));
   const roles = ["homepage", "about", "contact", "product", "article", "pricing", "faq", "category", "other"];
   const selected = [];
   for (const role of roles) {
@@ -259,7 +281,7 @@ const SCHEMA_RULES = {
   Article: { required: ["headline", "author", "datePublished"], recommended: ["dateModified", "image", "publisher"] },
   FAQPage: { required: ["mainEntity"], recommended: [] },
   BreadcrumbList: { required: ["itemListElement"], recommended: [] },
-  SoftwareApplication: { required: ["name", "operatingSystem", "applicationCategory"], recommended: ["offers", "aggregateRating"] },
+  SoftwareApplication: { required: ["name", "operatingSystem", "applicationCategory"], recommended: ["offers"] },
 };
 
 function cleanEntityValue(value) {
@@ -506,7 +528,10 @@ export function analyzePageResponse(response, requestedUrl, rendered = null) {
   const renderedWords = renderedText.split(/\s+/).filter(Boolean).length;
   const addedWords = Math.max(0, renderedWords - rawWords);
   const jsDependentPercent = renderedWords ? clampScore((addedWords / renderedWords) * 100) : null;
-  const soft404 = response.status === 200 && (/page not found|404|doesn.?t exist|nothing here/i.test(`${title} ${h1.join(" ")} ${text.slice(0, 800)}`) || rawWords < 20);
+  const notFoundPattern = /page not found|404|doesn.?t exist|nothing here/i;
+  const explicitNotFound = notFoundPattern.test(`${title} ${h1.join(" ")} ${text.slice(0, 800)} ${rendered?.title || ""} ${renderedText.slice(0, 800)}`);
+  const effectiveWords = Math.max(rawWords, renderedWords);
+  const soft404 = response.status === 200 && (explicitNotFound || effectiveWords < 20);
   const canonicalConflict = Boolean(canonical && new URL(canonical).toString() !== new URL(response.finalUrl || requestedUrl).toString());
   const schema = validateSchema($, response.finalUrl || requestedUrl, text);
   const metadataQuality = analyzeMetadataQuality({ title, description, h1, text });
@@ -550,7 +575,7 @@ export function analyzePageResponse(response, requestedUrl, rendered = null) {
   if (contentEvidence.concreteFacts.length) add("pass", "Concrete factual evidence", `${contentEvidence.concreteFacts.length} specific factual claims detected`, "Keep important claims prominent and support them with sources where appropriate.", "medium", "Visible page content");
   if (/noindex/.test(directives)) add("fail", "Indexability", `Robots directives: ${directives}`, "Remove noindex if this page should appear in search.", "high", 'meta[name="robots"] / X-Robots-Tag');
   if (canonicalConflict) add("warning", "Canonical", `Canonical points to ${canonical}`, "Confirm the canonical intentionally consolidates this URL.", "medium", 'link[rel="canonical"]');
-  if (soft404) add("fail", "Soft 404", `HTTP ${response.status}; ${rawWords} raw words`, "Return 404/410 or add substantive page content.", "high", "HTTP response and main content");
+  if (soft404) add("fail", "Soft 404", `HTTP ${response.status}; ${rawWords} raw words${rendered ? `; ${renderedWords} rendered words` : ""}`, "Return 404/410 or add substantive page content.", "high", "HTTP response and main content");
   if (jsDependentPercent != null && jsDependentPercent > 35) add("warning", "JavaScript dependency", `${jsDependentPercent}% of rendered words were absent from raw HTML`, "Server-render important content and structured data.", "high", "body (raw HTML versus rendered DOM)");
   if (schemaComparison.addedAfterJavaScript.length) add("warning", "Rendered-only schema", `Schema added after JavaScript: ${schemaComparison.addedAfterJavaScript.join(", ")}`, "Include critical structured data in server-rendered HTML.", "high", 'script[type="application/ld+json"]');
   for (const invalid of schema.invalid) add("fail", "Schema validation", `JSON-LD block ${invalid.block}: ${invalid.error}`, "Publish valid JSON-LD.", "high", `script[type="application/ld+json"]:nth-of-type(${invalid.block})`);

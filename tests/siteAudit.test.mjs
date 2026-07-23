@@ -3,7 +3,7 @@ import test from "node:test";
 import * as cheerio from "cheerio";
 import { analyzeMetadataQuality, analyzePageResponse, buildEntityAnalysis, buildMetadataAnalysis, selectRepresentativeUrls, validateSchema } from "../src/lib/siteAudit.js";
 import { PROFILE_WEIGHTS, profileAwareScore } from "../src/lib/scoring.js";
-import { decodeHtmlText, detectIncompleteJavascriptShell, detectNonOperationalHomepage, extractEntities, isTransientFailure, networkFailurePhase, normalizeEmail, normalizeObfuscatedContacts, validateLighthouseResult } from "../src/lib/scanner.js";
+import { decodeHtmlText, detectIncompleteJavascriptShell, detectNonOperationalHomepage, extractEntities, groupAuditFindings, isPreviewErrorPage, isTransientFailure, networkFailurePhase, normalizeEmail, normalizeObfuscatedContacts, validateLighthouseResult } from "../src/lib/scanner.js";
 import { resolvePublicOrigin } from "../src/lib/publicOrigin.js";
 import { summarizeInspection, urlBelongsToSearchConsoleProperty } from "../src/lib/externalVerification.js";
 
@@ -36,11 +36,17 @@ test("representative URL selection covers important page roles", () => {
     "https://example.com/pricing",
     "https://example.com/faq",
     "https://example.com/locations/london",
+    "https://example.com/scan-report",
+    "https://example.com/admin",
+    "https://example.com/checkout",
   ]);
   assert.ok(urls.includes(base));
   assert.ok(urls.some((url) => url.includes("/services/")));
   assert.ok(urls.some((url) => url.includes("/blog/")));
   assert.ok(urls.some((url) => url.includes("/locations/")));
+  assert.ok(!urls.some((url) => url.includes("/scan-report")));
+  assert.ok(!urls.some((url) => url.includes("/admin")));
+  assert.ok(!urls.some((url) => url.includes("/checkout")));
 });
 
 test("schema validation reports malformed JSON and missing required fields", () => {
@@ -54,6 +60,23 @@ test("schema validation reports malformed JSON and missing required fields", () 
   assert.equal(result.invalid.length, 1);
   assert.ok(result.issues.some((issue) => issue.type === "Product" && issue.missingRequired.includes("name")));
   assert.ok(result.score < 70);
+});
+
+test("SoftwareApplication does not require an unverifiable aggregate rating", () => {
+  const $ = cheerio.load(`
+    <html><body><h1>Website scanner</h1>
+      <script type="application/ld+json">${JSON.stringify({
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        name: "Website scanner",
+        operatingSystem: "Web",
+        applicationCategory: "BusinessApplication",
+        offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+      })}</script>
+    </body></html>
+  `);
+  const result = validateSchema($, "https://example.com", "Website scanner");
+  assert.ok(!result.issues.some((issue) => issue.type === "SoftwareApplication"));
 });
 
 test("page comparison identifies JavaScript-dependent content and canonical conflicts", () => {
@@ -82,6 +105,49 @@ test("soft 404 and noindex pages are not treated as indexable", () => {
   assert.equal(page.soft404, true);
   assert.equal(page.indexable, false);
   assert.ok(page.findings.some((finding) => finding.check === "Indexability"));
+});
+
+test("thin raw HTML is not a soft 404 when rendered content is substantive", () => {
+  const renderedText = Array.from({ length: 40 }, (_, index) => `useful${index}`).join(" ");
+  const page = analyzePageResponse({
+    status: 200,
+    finalUrl: "https://example.com/client-page",
+    headers: {},
+    data: "<html><head><title>Client Page</title></head><body><div id=\"app\">Loading</div></body></html>",
+  }, "https://example.com/client-page", {
+    title: "Client Page",
+    text: renderedText,
+    html: `<html><body><h1>Client Page</h1><p>${renderedText}</p></body></html>`,
+  });
+  assert.equal(page.soft404, false);
+  assert.ok(!page.findings.some((finding) => finding.check === "Soft 404"));
+});
+
+test("identical page findings are grouped into one recommendation action", () => {
+  const shared = {
+    status: "warning",
+    check: "Service schema",
+    element: 'script[type="application/ld+json"]',
+    evidence: "Missing recommended: areaServed, offers",
+    fix: "Add the missing properties.",
+  };
+  const grouped = groupAuditFindings([
+    { ...shared, url: "https://example.com/" },
+    { ...shared, url: "https://example.com/services" },
+    { ...shared, check: "Product schema", evidence: "Missing recommended: image", url: "https://example.com/product" },
+  ]);
+  assert.equal(grouped.length, 2);
+  assert.deepEqual(grouped[0].affectedUrls, ["https://example.com/", "https://example.com/services"]);
+});
+
+test("preview validation rejects captured application and HTTP error pages", () => {
+  assert.equal(isPreviewErrorPage({
+    title: "",
+    text: "Application error: a client-side exception has occurred (see the browser console for more information).",
+    httpStatus: 200,
+  }), true);
+  assert.equal(isPreviewErrorPage({ title: "Store", text: "Browse our latest products.", httpStatus: 200 }), false);
+  assert.equal(isPreviewErrorPage({ title: "Not found", text: "", httpStatus: 404 }), true);
 });
 
 function entityPage(url, { name, address, phone, sameAs = [], relationship = true }) {

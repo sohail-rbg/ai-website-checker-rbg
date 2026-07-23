@@ -37,7 +37,7 @@ export default function FaqPage() {
         },
         {
           heading: "Can I email the report?",
-          copy: "Yes. After a scan, enter your email to receive the full report, top recommendations and a hosted report link. Admin notification can also be sent for follow-up.",
+          copy: "Yes. After a scan, enter your email to receive the full report and prioritized recommendations. Admin notification can also be sent for follow-up.",
         },
       ]}
     />
