@@ -3,7 +3,9 @@ import test from "node:test";
 import * as cheerio from "cheerio";
 import { analyzeMetadataQuality, analyzePageResponse, buildEntityAnalysis, buildMetadataAnalysis, selectRepresentativeUrls, validateSchema } from "../src/lib/siteAudit.js";
 import { PROFILE_WEIGHTS, profileAwareScore } from "../src/lib/scoring.js";
-import { decodeHtmlText, isTransientFailure, networkFailurePhase, normalizeObfuscatedContacts } from "../src/lib/scanner.js";
+import { decodeHtmlText, detectIncompleteJavascriptShell, detectNonOperationalHomepage, extractEntities, isTransientFailure, networkFailurePhase, normalizeEmail, normalizeObfuscatedContacts, validateLighthouseResult } from "../src/lib/scanner.js";
+import { resolvePublicOrigin } from "../src/lib/publicOrigin.js";
+import { summarizeInspection, urlBelongsToSearchConsoleProperty } from "../src/lib/externalVerification.js";
 
 test("profile weights are normalized to 100", () => {
   for (const weights of Object.values(PROFILE_WEIGHTS)) {
@@ -189,7 +191,97 @@ test("temporary HTTP and network failures are eligible for bounded retry", () =>
 
 test("network failures are classified by actionable stage", () => {
   assert.equal(networkFailurePhase({ code: "ENOTFOUND", message: "getaddrinfo failed" }), "dns");
+  assert.equal(networkFailurePhase({ code: "EBUSY", message: "getaddrinfo EBUSY example.com" }), "dns");
   assert.equal(networkFailurePhase({ code: "CERT_HAS_EXPIRED", message: "certificate expired" }), "tls");
   assert.equal(networkFailurePhase({ code: "ECONNREFUSED", message: "connect refused" }), "connection");
   assert.equal(networkFailurePhase({ code: "ETIMEDOUT", message: "timeout" }), "response");
+});
+
+test("hosted report links prefer the configured public origin and reject localhost", () => {
+  const request = {
+    url: "http://localhost:3000/api/email",
+    headers: { get: (name) => name === "origin" ? "http://localhost:3000" : null },
+  };
+  assert.equal(resolvePublicOrigin(request, { NEXT_PUBLIC_SITE_URL: "https://scansiteai.com/" }), "https://scansiteai.com");
+  assert.equal(resolvePublicOrigin(request, {}), "https://scansiteai.com");
+});
+
+test("reserved, parked, expired, and soft-404 homepages are rejected before scoring", () => {
+  const cases = [
+    ["https://example.com/", "<title>Example Domain</title><body>This domain is for use in illustrative examples in documents.</body>"],
+    ["https://parked.test/", "<title>Domain for sale</title><body>Buy this domain and make an offer today.</body>"],
+    ["https://expired.test/", "<title>Domain expired</title><body>This domain has expired. Renew your domain.</body>"],
+    ["https://missing.test/", "<title>404 Not Found</title><body><h1>Page not found</h1></body>"],
+  ];
+  for (const [url, html] of cases) assert.ok(detectNonOperationalHomepage(cheerio.load(html), url, 200));
+  const valid = cheerio.load("<title>Acme Dental</title><body><h1>Dental care</h1><p>Our licensed clinical team provides preventive, restorative, and emergency dental treatment for families in London. Book an appointment or review our services, credentials, fees, and patient information.</p></body>");
+  assert.equal(detectNonOperationalHomepage(valid, "https://acme.test/", 200), "");
+});
+
+test("incomplete Lighthouse reports are not presented as real zero scores", () => {
+  const allZero = { lhr: { categories: { performance: { score: 0 }, accessibility: { score: 0 }, seo: { score: 0 }, "best-practices": { score: 0 } } } };
+  const runtimeFailure = { lhr: { runtimeError: { code: "ERRORED_DOCUMENT_REQUEST", message: "Page load failed" }, categories: { performance: { score: 0 } } } };
+  const measured = { lhr: { categories: { performance: { score: 0.62 }, accessibility: { score: 0.9 }, seo: { score: 0.84 }, "best-practices": { score: 0.78 } } } };
+  assert.equal(validateLighthouseResult(allZero).valid, false);
+  assert.equal(validateLighthouseResult(runtimeFailure).valid, false);
+  assert.equal(validateLighthouseResult(measured).valid, true);
+});
+
+test("empty JavaScript application shells are rejected before scoring", () => {
+  const explicitShell = cheerio.load("<html><body><noscript>You need to enable JavaScript to run this app.</noscript><div id='root'></div><script src='/app.js'></script></body></html>");
+  const emptyShell = cheerio.load("<html><body><div id='root'></div><script type='module' src='/app.js'></script></body></html>");
+  const realPage = cheerio.load("<html><body><main><h1>Brand strategy services</h1><p>We help growing companies clarify their positioning and visual identity.</p></main><script src='/app.js'></script></body></html>");
+  const renderedApp = cheerio.load(`<html><body><noscript>You need to enable JavaScript to run this app.</noscript><div id="root"><main><h1>Digital branding agency</h1><p>${"Real rendered website content ".repeat(50)}</p></main></div><script src="/app.js"></script></body></html>`);
+  assert.equal(detectIncompleteJavascriptShell(explicitShell).incomplete, true);
+  assert.equal(detectIncompleteJavascriptShell(emptyShell).incomplete, true);
+  assert.equal(detectIncompleteJavascriptShell(realPage).incomplete, false);
+  assert.equal(detectIncompleteJavascriptShell(renderedApp).incomplete, false);
+});
+
+test("entity extraction keeps contact fields separate and returns clean service lists", () => {
+  const $ = cheerio.load(`<html><body>
+    <header><img src="/logo.png" alt="ReBrand Gurus"></header>
+    <a href="mailto:info@rebrandgurus.com">Email Usinfo@rebrandgurus.com</a><span>Location</span>
+    <a href="tel:+14353950079">+1 (435) 395-0079</a>
+    <address>ReBrand Gurus International LLC, PO Box 980457, Park City, Utah 84098</address>
+    <a href="/service/web-design"><h4>Website Design</h4><div>Crafting visually appealing and highly functional websites tailored to business growth.</div></a><a href="/service/seo"><h4>SEO</h4><div>Optimizing website content and structure for search engines.</div></a>
+    <a href="/services">Services</a><h2>Mobile App Creating intuitive and engaging mobile applications for iOS and Android platforms to meet specific business needs and boost customer engagement.</h2>
+  </body></html>`);
+  const text = $("body").text().replace(/\s+/g, " ").trim();
+  const entities = extractEntities($, { title: "Digital Branding and Creative Agency in Utah" }, text, "https://rebrandgurus.com/", "homepage");
+  assert.equal(normalizeEmail("usinfo@rebrandgurus.comlocationrebrand"), "usinfo@rebrandgurus.com");
+  assert.equal(entities.companyName, "ReBrand Gurus");
+  assert.deepEqual(entities.emails, ["info@rebrandgurus.com"]);
+  assert.deepEqual(entities.services, ["Website Design", "SEO"]);
+  assert.deepEqual(entities.products, []);
+  assert.match(entities.address, /PO Box 980457/);
+  assert.equal(entities.hasSchemaEntity, false);
+  assert.equal(entities.score, 85);
+});
+
+test("Search Console property scope prevents unrelated client URL inspection", () => {
+  assert.equal(urlBelongsToSearchConsoleProperty("https://scansiteai.com/about", "sc-domain:scansiteai.com"), true);
+  assert.equal(urlBelongsToSearchConsoleProperty("https://www.scansiteai.com/about", "sc-domain:scansiteai.com"), true);
+  assert.equal(urlBelongsToSearchConsoleProperty("https://rebrandgurus.com/", "sc-domain:scansiteai.com"), false);
+  assert.equal(urlBelongsToSearchConsoleProperty("https://example.com/blog/post", "https://example.com/blog/"), true);
+  assert.equal(urlBelongsToSearchConsoleProperty("https://example.com/about", "https://example.com/blog/"), false);
+});
+
+test("Search Console inspection summary preserves index evidence", () => {
+  const summary = summarizeInspection({
+    indexStatusResult: {
+      verdict: "PASS",
+      coverageState: "Submitted and indexed",
+      pageFetchState: "SUCCESSFUL",
+      crawledAs: "MOBILE",
+      googleCanonical: "https://scansiteai.com/",
+    },
+    mobileUsabilityResult: { verdict: "PASS" },
+    richResultsResult: { verdict: "PASS", detectedItems: [{ richResultType: "FAQ" }] },
+  });
+  assert.equal(summary.verdict, "PASS");
+  assert.equal(summary.coverageState, "Submitted and indexed");
+  assert.equal(summary.googleCanonical, "https://scansiteai.com/");
+  assert.equal(summary.mobileVerdict, "PASS");
+  assert.equal(summary.detectedRichResultItems.length, 1);
 });

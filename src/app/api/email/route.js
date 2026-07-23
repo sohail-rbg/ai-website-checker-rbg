@@ -4,6 +4,7 @@ import { connectToDatabase } from "@/lib/db";
 import Lead from "@/models/Lead";
 import Scan from "@/models/Scan";
 import Submission from "@/models/Submission";
+import { resolvePublicOrigin } from "@/lib/publicOrigin";
 import { checkRateLimit, clientKey } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
@@ -70,27 +71,8 @@ function sanitizeReportForStorage(report) {
 
 function databaseErrorPayload(error, code) {
   const message = error?.message || "";
-  const lower = message.toLowerCase();
-
-  let errorText = "Could not save this lead right now.";
-  if (/mongodb_uri/i.test(message)) {
-    errorText = "MongoDB is not configured. Add MONGODB_URI to your live environment.";
-  } else if (lower.includes("bad auth") || lower.includes("authentication failed") || lower.includes("auth failed")) {
-    errorText = "MongoDB authentication failed. Check the live MONGODB_URI username and password.";
-  } else if (lower.includes("querysrv") || lower.includes("enotfound") || lower.includes("getaddrinfo")) {
-    errorText = "MongoDB hostname could not be resolved. Check the live MONGODB_URI value.";
-  } else if (lower.includes("server selection timed out") || lower.includes("timed out")) {
-    errorText = "MongoDB connection timed out. Check Atlas Network Access/IP allowlist for Vercel.";
-  } else if (error?.name === "ValidationError") {
-    errorText = "Lead data validation failed before saving.";
-  } else if (lower.includes("bson") || lower.includes("maximum size") || lower.includes("object to insert too large")) {
-    errorText = "The report is too large for the current database write. Please retry after the latest storage update is deployed.";
-  } else if (error?.code === 11000) {
-    errorText = "This lead already exists, but the report could not be updated.";
-  }
-
   return {
-    error: errorText,
+    error: "We could not save your request right now. Please try again in a few minutes.",
     code,
     detail: process.env.NODE_ENV === "production" ? undefined : message,
   };
@@ -445,7 +427,7 @@ export async function POST(request) {
       return Response.json(databaseErrorPayload(error, "SUBMISSION_SAVE_FAILED"), { status: 500 });
     }
 
-    const origin = request.headers.get("origin") || new URL(request.url).origin;
+    const origin = resolvePublicOrigin(request);
     const reportUrl = `${origin}/report/${lead._id}?submission=${submission._id}`;
 
     let transporter = null;
@@ -554,13 +536,12 @@ export async function POST(request) {
       delivery,
       message: emailSent
         ? "Report confirmation sent."
-        : "Lead saved. Email delivery needs SMTP configuration.",
+        : "Your request was saved, but we could not send the email right now. Please try again later.",
     });
   } catch (error) {
     console.error("Lead capture failed", error);
-    const missingMongo = /MONGODB_URI/.test(error.message || "");
     return Response.json(
-      { error: missingMongo ? "MongoDB is not configured. Add MONGODB_URI to your environment." : "Could not save this lead right now." },
+      { error: "We could not save your request right now. Please try again in a few minutes." },
       { status: 500 }
     );
   }

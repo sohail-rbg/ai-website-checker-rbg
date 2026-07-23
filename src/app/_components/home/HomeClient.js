@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import toast, { Toaster } from "react-hot-toast";
 import {
   ArrowRight,
@@ -47,6 +47,15 @@ const scanSteps = [
   "Extracting entities...",
   "Running performance audit...",
   "Calculating AI readiness...",
+];
+
+const websiteProfiles = [
+  { value: "local_business", label: "Local business", copy: "Location-based services, stores, clinics or hospitality" },
+  { value: "saas", label: "SaaS", copy: "Subscription software, online platforms or web applications" },
+  { value: "ecommerce", label: "Ecommerce", copy: "Online stores, product catalogs and checkout websites" },
+  { value: "publisher", label: "Publisher / blog", copy: "News, editorial, educational or article-led websites" },
+  { value: "agency", label: "Agency / services", copy: "Consultancies, professional services and creative agencies" },
+  { value: "api", label: "API / developer", copy: "APIs, SDKs, technical documentation and developer products" },
 ];
 
 const features = [
@@ -545,6 +554,7 @@ function HeroCtaBand() {
           <p className="mt-1 text-sm text-[#d9e1d8]/85">Stay visible in AI answers. Build trust. Get ahead.</p>
         </div>
       </div>
+      <a href="#scan-form" className={styles.bandAction}>Run a free scan <ArrowRight size={17} strokeWidth={2} aria-hidden="true" /></a>
       <div className={styles.bandWave} />
     </motion.div>
   );
@@ -1013,7 +1023,29 @@ function ScanReliabilitySection({ audit, verification, calibration, preview }) {
       </div>
       <div className="grid gap-5 lg:grid-cols-2">
         <Card className="p-6"><h3 className="text-lg font-semibold text-white">Coverage evidence</h3><ul className="mt-4 grid gap-2 text-sm text-[#d9e1d8]/70">{audit.confidence.reasons.map((reason) => <li key={reason}>• {reason}</li>)}</ul><p className="mt-4 text-xs text-[#8B9C8C]">Scanner {audit.diagnostics.scannerVersion} · {audit.diagnostics.durationMs}ms · calibration {calibration?.version || "unversioned"}</p></Card>
-        <Card className="p-6"><div className="flex items-center justify-between gap-3"><h3 className="text-lg font-semibold text-white">External verification</h3><span className="rounded-full border border-white/10 bg-white/[.04] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#d9e1d8]/60">Optional</span></div><div className="mt-4 grid gap-3">{(verification?.results || []).map((item) => <div key={item.provider} className="flex items-center justify-between gap-4 border-b border-white/8 pb-3 text-sm"><span className="text-[#d9e1d8]">{item.provider}</span><span className={`capitalize ${item.status === "not_configured" ? "text-[#d9e1d8]/55" : "text-[#9fe0a8]"}`}>{item.status.replaceAll("_", " ")}</span></div>)}</div><p className="mt-4 text-xs text-[#8B9C8C]">Optional integrations do not reduce readiness scores when they are not configured.</p></Card>
+        <Card className="p-6">
+          <div className="flex items-center justify-between gap-3"><h3 className="text-lg font-semibold text-white">External verification</h3><span className="rounded-full border border-white/10 bg-white/[.04] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#d9e1d8]/60">Optional</span></div>
+          <div className="mt-4 grid gap-4">
+            {(verification?.results || []).map((item) => {
+              const summary = item.summary;
+              const statusColor = item.status === "verified" ? "text-[#9fe0a8]" : item.status === "unavailable" ? "text-rose-200" : "text-[#d9e1d8]/55";
+              return (
+                <div key={item.provider} className="border-b border-white/8 pb-4 text-sm">
+                  <div className="flex items-start justify-between gap-4"><span className="text-[#d9e1d8]">{item.provider}</span><span className={`shrink-0 capitalize ${statusColor}`}>{item.status.replaceAll("_", " ")}</span></div>
+                  {summary && <dl className="mt-3 grid gap-2 text-xs text-[#d9e1d8]/65 sm:grid-cols-2">
+                    <div><dt className="text-[#8B9C8C]">Google index verdict</dt><dd className="mt-1 text-[#d9e1d8]">{summary.verdict.replaceAll("_", " ")}</dd></div>
+                    <div><dt className="text-[#8B9C8C]">Coverage</dt><dd className="mt-1 text-[#d9e1d8]">{summary.coverageState || "Not reported"}</dd></div>
+                    <div><dt className="text-[#8B9C8C]">Last crawl</dt><dd className="mt-1 text-[#d9e1d8]">{summary.lastCrawlTime ? new Date(summary.lastCrawlTime).toLocaleString() : "Not reported"}</dd></div>
+                    <div><dt className="text-[#8B9C8C]">Crawled as</dt><dd className="mt-1 text-[#d9e1d8]">{summary.crawledAs?.replaceAll("_", " ") || "Not reported"}</dd></div>
+                    <div className="sm:col-span-2"><dt className="text-[#8B9C8C]">Google canonical</dt><dd className="mt-1 break-all text-[#d9e1d8]">{summary.googleCanonical || "Not reported"}</dd></div>
+                  </dl>}
+                  {(item.error || item.reason) && <p className={`mt-3 text-xs leading-5 ${item.status === "unavailable" ? "text-rose-200/85" : "text-[#d9e1d8]/55"}`}>{item.error || item.reason}</p>}
+                </div>
+              );
+            })}
+          </div>
+          <p className="mt-4 text-xs text-[#8B9C8C]">Search Console data is external Google index evidence. It does not replace Lighthouse performance measurement or affect readiness scores when unavailable.</p>
+        </Card>
       </div>
     </Section>
   );
@@ -1084,7 +1116,10 @@ function TopImprovementsSection({ report, visibleRecommendations, hiddenCount })
   const hiddenRecommendations = report.recommendations.slice(1);
   const hiddenPreview = hiddenRecommendations.slice(0, 3);
   const remainingHidden = Math.max(hiddenRecommendations.length - hiddenPreview.length, 0);
-  const hiddenLabel = hiddenCount === 1 ? "hidden improvement" : "hidden improvements";
+  const hiddenPointOpportunity = Math.min(
+    Math.max(0, 100 - (Number(report.overallScore) || 0)),
+    hiddenRecommendations.reduce((sum, item) => sum + (Number(item.expectedGain) || 0), 0),
+  );
 
   if (!primary) return null;
 
@@ -1164,8 +1199,9 @@ function TopImprovementsSection({ report, visibleRecommendations, hiddenCount })
                     </p>
                   </div>
                   <div className="shrink-0 rounded-[1.5rem] border border-[#90ee9a]/18 bg-[#90ee9a]/10 px-5 py-4 text-center shadow-[0_0_38px_rgba(144,238,154,.08)]">
-                    <p className="text-4xl font-semibold text-[#90ee9a]">+{hiddenCount}</p>
-                    <p className="mt-1 text-[0.65rem] font-bold uppercase tracking-[0.2em] text-[#d9e1d8]/60">{hiddenLabel}</p>
+                    <p className="text-4xl font-semibold text-[#90ee9a]">{hiddenCount}</p>
+                    <p className="mt-1 text-[0.65rem] font-bold uppercase tracking-[0.2em] text-[#d9e1d8]/60">{hiddenCount === 1 ? "hidden fix" : "hidden fixes"}</p>
+                    <p className="mt-2 text-xs text-[#d9e1d8]/55">Up to +{hiddenPointOpportunity} points combined</p>
                   </div>
                 </div>
 
@@ -1177,7 +1213,7 @@ function TopImprovementsSection({ report, visibleRecommendations, hiddenCount })
                       </span>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-semibold text-white">{item.title}</p>
-                        <p className="mt-1 text-xs leading-5 text-[#d9e1d8]/58">Hidden fix #{index + 2} • expected gain +{item.expectedGain || 1} points</p>
+                        <p className="mt-1 text-xs leading-5 text-[#d9e1d8]/58">Hidden fix #{index + 2} • {Number(item.expectedGain) > 0 ? `expected gain +${item.expectedGain} points` : "impact included in a related fix"}</p>
                       </div>
                       <ArrowRight size={18} strokeWidth={1.8} className="hidden shrink-0 text-[#90ee9a] sm:block" aria-hidden="true" />
                     </div>
@@ -1258,8 +1294,10 @@ function TechnicalAuditSection({ report }) {
   const attention = checks.filter(([, value]) => value === false).length;
   const notMeasured = checks.filter(([, value]) => value == null).length;
   const eeatSignals = report.eeat.signals || {};
-  const serviceNames = (report.entities.services || []).slice(0, 2);
-  const productNames = (report.entities.products || []).slice(0, 2);
+  const allServiceNames = report.entities.services || [];
+  const allProductNames = report.entities.products || [];
+  const serviceNames = allServiceNames.slice(0, 5);
+  const productNames = allProductNames.slice(0, 5);
   const schemaGaps = [...new Set((report.siteAudit?.pages || []).flatMap((page) => (page.schema?.issues || []).flatMap((issue) => [
     ...(issue.missingRequired || []).map((property) => `${issue.type}.${property} (required)`),
     ...(issue.missingRecommended || []).map((property) => `${issue.type}.${property}`),
@@ -1268,9 +1306,7 @@ function TechnicalAuditSection({ report }) {
   const schemaAuditScore = measuredSchemaPages.length
     ? Math.round(measuredSchemaPages.reduce((sum, page) => sum + page.schema.score, 0) / measuredSchemaPages.length)
     : report.schema.score;
-  const entityAuditScore = report.siteAudit?.categoryScores?.entityConfidence?.measured
-    ? report.siteAudit.categoryScores.entityConfidence.score
-    : report.entities.score;
+  const entityAuditScore = report.entities.score;
   const auditCards = [
     {
       icon: Database,
@@ -1302,7 +1338,12 @@ function TechnicalAuditSection({ report }) {
           `Response time: ${report.performance.responseTimeMs}ms`,
           `HTML size: ${Math.round((report.performance.htmlBytes || 0) / 1024)}KB`,
         ]
-        : [`Accessibility: ${report.performance.accessibility}`, `SEO: ${report.performance.seo}`, `Best Practices: ${report.performance.bestPractices}`],
+        : [
+          `Source: ${report.performance.source || "Lighthouse"}`,
+          `Accessibility: ${report.performance.accessibility ?? "Not measured"}`,
+          `SEO: ${report.performance.seo ?? "Not measured"}`,
+          `Best Practices: ${report.performance.bestPractices ?? "Not measured"}`,
+        ],
     },
     {
       icon: ShieldCheck,
@@ -1321,8 +1362,11 @@ function TechnicalAuditSection({ report }) {
       lines: [
         `Company: ${report.entities.companyName || "Not detected"}`,
         `Email: ${report.entities.emails[0] || "Not detected"}`,
-        `Services: ${serviceNames.length ? serviceNames.join(", ") : "Not detected"}`,
-        `Products: ${productNames.length ? productNames.join(", ") : "Not detected"}`,
+        ...(report.entities.phones?.[0] ? [`Phone: ${report.entities.phones[0]}`] : []),
+        ...(report.entities.address ? [`Location: ${report.entities.address}`] : report.entities.locations?.[0] ? [`Location: ${report.entities.locations[0]}`] : []),
+        `Structured entity schema: ${report.entities.hasSchemaEntity ? "Present" : "Missing"}`,
+        ...(serviceNames.length ? ["Services:", ...serviceNames.map((name) => `• ${name}`), ...(allServiceNames.length > serviceNames.length ? [`+${allServiceNames.length - serviceNames.length} more services`] : [])] : ["Services: Not detected"]),
+        ...(productNames.length ? ["Products:", ...productNames.map((name) => `• ${name}`), ...(allProductNames.length > productNames.length ? [`+${allProductNames.length - productNames.length} more products`] : [])] : []),
       ],
     },
     {
@@ -1603,14 +1647,17 @@ async function getApproxLocationForScan() {
 export default function Home() {
   const [isScanning, setIsScanning] = useState(false);
   const [step, setStep] = useState(0);
+  const [scanFailure, setScanFailure] = useState(null);
   const router = useRouter();
-  const { register, handleSubmit, formState: { errors } } = useForm({ defaultValues: { url: "", profile: "auto" } });
+  const { register, handleSubmit, control, formState: { errors } } = useForm({ defaultValues: { url: "", profile: "" } });
+  const selectedProfile = useWatch({ control, name: "profile" });
 
   useEffect(() => {
     router.prefetch("/scan-report");
   }, [router]);
 
   async function onSubmit(values) {
+    setScanFailure(null);
     setIsScanning(true);
     setStep(0);
     const timer = setInterval(() => setStep((current) => Math.min(current + 1, scanSteps.length - 1)), 1400);
@@ -1625,12 +1672,19 @@ export default function Home() {
         body: JSON.stringify({ url: values.url, profile: values.profile, email: storedEmail, location: approxLocation }),
       });
       const data = await readApiResponse(response, "The live server returned an invalid scan response. Please try again.");
-      if (!response.ok) throw new Error(data.error || "Scan failed.");
+      if (!response.ok) {
+        if (data.websiteFailure) setScanFailure({ title: "Website unavailable", message: data.error || "The website is unavailable.", httpStatus: data.httpStatus, score: 0 });
+        throw new Error(data.error || "Scan failed.");
+      }
       setStep(scanSteps.length - 1);
       sessionStorage.setItem("aiWebsiteReadinessReport", JSON.stringify(data.report));
       router.replace("/scan-report");
     } catch (error) {
-      toast.error(error.message);
+      const rawMessage = error?.message || "We could not complete this scan.";
+      const friendlyMessage = /getaddrinfo|\bEBUSY\b|ENOTFOUND|EAI_AGAIN/i.test(rawMessage)
+        ? "We could not resolve this website's domain. It may be expired, temporarily unavailable, or incorrectly configured. Please verify the address and try again."
+        : rawMessage;
+      setScanFailure((current) => current || { title: "Scan could not be completed", message: friendlyMessage, httpStatus: null, score: null });
     } finally {
       clearInterval(timer);
       setIsScanning(false);
@@ -1676,6 +1730,7 @@ export default function Home() {
         </motion.div>
 
         <motion.form
+          id="scan-form"
           initial={{ opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.15, duration: 0.7 }}
@@ -1694,18 +1749,38 @@ export default function Home() {
             />
             {errors.url && <p className="px-4 pt-2 text-sm text-rose-300">{errors.url.message}</p>}
           </div>
-          <button disabled={isScanning} className="flex h-14 items-center justify-center gap-3 rounded-2xl bg-[#98d8a1] px-6 text-base font-semibold text-[#020302] shadow-[0_0_34px_rgba(152,216,161,.28)] transition hover:bg-[#aaf0b3] disabled:cursor-wait disabled:opacity-70 sm:h-16 sm:px-8">
+          <button disabled={isScanning || !selectedProfile} className="flex h-14 items-center justify-center gap-3 rounded-2xl bg-[#98d8a1] px-6 text-base font-semibold text-[#020302] shadow-[0_0_34px_rgba(152,216,161,.28)] transition hover:bg-[#aaf0b3] disabled:cursor-not-allowed disabled:opacity-45 sm:h-16 sm:px-8">
             <ArrowRight size={22} strokeWidth={2.2} aria-hidden="true" />
-            {isScanning ? "Analyzing..." : "Analyze Website"}
+            {isScanning ? "Analyzing..." : selectedProfile ? "Analyze Website" : "Choose type first"}
           </button>
-          <label className="flex flex-col items-stretch gap-2 px-3 pb-1 text-left text-sm text-[#d9e1d8]/72 sm:col-span-2 sm:flex-row sm:items-center sm:gap-3">
-            <span className="shrink-0">Website profile</span>
-            <select {...register("profile")} className="w-full min-w-0 flex-1 rounded-xl border border-white/10 bg-[#07100e] px-3 py-2 text-white outline-none focus:border-[#90ee9a]/50 sm:w-auto">
-              <option value="auto">Detect automatically</option><option value="local_business">Local business</option><option value="saas">SaaS</option>
-              <option value="ecommerce">Ecommerce</option><option value="publisher">Publisher / blog</option><option value="agency">Agency / services</option><option value="api">API / developer product</option>
-            </select>
-          </label>
+          <fieldset className="grid gap-2 border-t border-white/10 px-1 pb-0.5 pt-3 text-left sm:col-span-2">
+            <legend className="px-1 text-xs font-semibold uppercase tracking-[0.12em] text-[#d9e1d8]/65">Website type <span className="normal-case tracking-normal text-[#8B9C8C]/65">· choose one</span></legend>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {websiteProfiles.map((profile) => {
+                const selected = selectedProfile === profile.value;
+                return (
+                  <label key={profile.value} title={profile.copy} className="relative flex min-h-9 cursor-pointer items-center gap-2.5 px-2 py-1.5 transition hover:text-[#b8f4bf]">
+                    <input type="radio" value={profile.value} {...register("profile", { required: "Choose a website type before scanning" })} className="sr-only" />
+                    <span className={`grid size-4.5 shrink-0 place-items-center rounded-md border transition ${selected ? "border-[#90ee9a] bg-[#90ee9a] text-[#020302]" : "border-white/25 bg-white/[.03] text-transparent"}`}><CheckCircle2 size={12} strokeWidth={3} aria-hidden="true" /></span>
+                    <strong className={`truncate text-xs font-semibold sm:text-sm ${selected ? "text-[#b8f4bf]" : "text-white"}`}>{profile.label}</strong>
+                    <span className="sr-only">{profile.copy}</span>
+                  </label>
+                );
+              })}
+            </div>
+            {errors.profile && <p className="px-1 text-sm font-medium text-rose-300">{errors.profile.message}</p>}
+          </fieldset>
         </motion.form>
+
+        <AnimatePresence>
+          {scanFailure && (
+            <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} role="alert" className="relative z-10 mx-auto mt-5 flex w-full max-w-[780px] items-start gap-4 rounded-2xl border border-rose-300/25 bg-rose-300/[.08] p-5 pr-14 text-left">
+              <span className="grid size-12 shrink-0 place-items-center rounded-full border border-rose-300/30 bg-rose-300/10 text-rose-200"><CircleAlert size={24} strokeWidth={2} aria-hidden="true" /></span>
+              <div><div className="flex flex-wrap items-center gap-3"><h2 className="text-lg font-semibold text-white">{scanFailure.title}</h2>{scanFailure.score === 0 && <span className="rounded-full border border-rose-300/25 bg-black/20 px-3 py-1 text-xs font-bold uppercase tracking-[0.14em] text-rose-200">Score 0</span>}</div><p className="mt-2 text-sm leading-6 text-[#d9e1d8]/75">{scanFailure.message}</p>{scanFailure.httpStatus && <p className="mt-2 text-xs text-rose-200/75">HTTP status: {scanFailure.httpStatus}</p>}</div>
+              <button type="button" onClick={() => setScanFailure(null)} className="absolute right-4 top-4 grid size-9 cursor-pointer place-items-center rounded-full border border-rose-300/20 bg-black/20 text-rose-100 transition hover:bg-rose-300/15" aria-label="Close error message"><X size={18} strokeWidth={2} aria-hidden="true" /></button>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         <motion.div
           initial={{ opacity: 0, y: 14 }}
@@ -1864,15 +1939,16 @@ export default function Home() {
             ))}
           </div>
 
-          <div id="faq-preview" className="mt-12 border-t border-[#8B9C8C]/15 pt-12">
-            <div className="grid gap-4 pb-4 lg:grid-cols-[0.45fr_1fr] lg:gap-12">
-              <div>
+          <div id="faq-preview" className={styles.faqPreview}>
+            <div className={styles.faqLayout}>
+              <div className={styles.faqIntro}>
                 <p className="text-sm font-semibold uppercase tracking-[0.26em] text-[#8B9C8C]">FAQ</p>
                 <h3 className={`${styles.heroTitle} mt-3 max-w-sm text-3xl font-semibold leading-tight text-white sm:text-4xl`}>
                   Questions website owners ask before running a scan.
                 </h3>
+                <p className={styles.faqIntroCopy}>Straight answers about what the scan measures, what the results mean and how to use them.</p>
               </div>
-              <div className="grid gap-4">
+              <div className={styles.faqList}>
                 {[
                   [
                     "Is this the same as regular SEO?",
@@ -1891,14 +1967,14 @@ export default function Home() {
                     "No. Platform scores are estimates derived from live technical signals such as schema, crawler access, content clarity, EEAT, entities and performance.",
                   ],
                 ].map(([question, answer], index) => (
-                  <details key={question} open={index === 0} className="group border-t border-[#8B9C8C]/12 py-6 first:border-t-0 first:pt-0">
-                    <summary className="flex cursor-pointer list-none items-start justify-between gap-6 text-lg font-semibold text-white marker:hidden">
+                  <details key={question} open={index === 0} className={`${styles.faqItem} group`}>
+                    <summary className="flex cursor-pointer list-none items-center justify-between gap-6 text-base font-semibold text-white marker:hidden sm:text-lg">
                       <span>{question}</span>
-                      <span className="mt-1 grid size-7 shrink-0 place-items-center rounded-full border border-[#8B9C8C]/20 text-sm text-[#9fe0a8] transition group-open:rotate-45">
+                      <span className="grid size-8 shrink-0 place-items-center rounded-full border border-[#90ee9a]/20 bg-[#90ee9a]/[.06] text-sm text-[#9fe0a8] transition group-open:rotate-45 group-open:bg-[#90ee9a]/15">
                         +
                       </span>
                     </summary>
-                    <p className="mt-4 max-w-3xl text-sm leading-7 text-[#d9e1d8]/72">
+                    <p className="mt-4 max-w-3xl pr-10 text-sm leading-7 text-[#d9e1d8]/72">
                       {answer}
                     </p>
                   </details>

@@ -6,13 +6,14 @@ import { SCORE_WEIGHTS, clampScore, gradeFor, weightedAverageScore } from "./sco
 import { assertPublicUrl } from "./security.js";
 import { runSiteAudit } from "./siteAudit.js";
 import { runExternalVerification } from "./externalVerification.js";
+import { launchBrowser } from "./browser.js";
 
 const BOT_AGENTS = ["GPTBot", "OAI-SearchBot", "ChatGPT-User", "ClaudeBot", "Claude-SearchBot", "Googlebot", "Google-Extended", "PerplexityBot", "Bingbot", "CCBot", "Amazonbot", "Applebot"];
 const SCHEMA_TYPES = ["Organization", "Person", "Article", "FAQPage", "Service", "Product", "Review", "LocalBusiness", "BreadcrumbList", "Recipe", "HowTo", "Event", "VideoObject", "JobPosting", "Course"];
 const USER_AGENT = "ScanSiteAI/1.0 (+https://scansiteai.com)";
 const BROWSER_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36";
 const REQUEST_TIMEOUT = 22000;
-const LIGHTHOUSE_TIMEOUT = 18000;
+const LIGHTHOUSE_TIMEOUT = Math.max(15000, Number(process.env.LIGHTHOUSE_TIMEOUT_MS) || 45000);
 const SCAN_DEADLINE_MS = 105000;
 const TRANSIENT_HTTP_STATUSES = new Set([408, 429, 502, 503, 504]);
 const TRANSIENT_NETWORK_CODES = new Set(["ECONNABORTED", "ETIMEDOUT", "ECONNRESET", "EAI_AGAIN", "ENETUNREACH", "EHOSTUNREACH"]);
@@ -80,8 +81,9 @@ function safeDecode(value) {
   }
 }
 
-function normalizeEmail(value) {
-  const match = String(value || "").match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+export function normalizeEmail(value) {
+  const match = String(value || "").match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.(?:com|org|net|edu|gov|mil|io|ai|co|us|uk|ca|au|de|fr|in|biz|info|me|dev|app|agency|digital|design|tech|store|shop)(?=$|[\s,;:!?()[\]<>]|location|address|phone|email|contact)/i)
+    || String(value || "").match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,24}(?=$|[\s,;:!?()[\]<>])/i);
   return match ? match[0].toLowerCase() : "";
 }
 
@@ -246,8 +248,7 @@ async function fetchWithBrowserTransport(url, deadline, attempts = []) {
   const startedAt = Date.now();
   try {
     if (deadline && Date.now() >= deadline - 4000) throw Object.assign(new Error("Scan deadline reached before browser fallback."), { code: "SCAN_DEADLINE" });
-    const { default: puppeteer } = await import("puppeteer");
-    browser = await puppeteer.launch({ headless: true, args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-gpu"] });
+    browser = await launchBrowser({ args: ["--disable-gpu"] });
     const page = await browser.newPage();
     await page.setUserAgent(BROWSER_USER_AGENT);
     await page.setExtraHTTPHeaders(BROWSER_HEADERS);
@@ -300,6 +301,58 @@ async function fetchHomepage(url, deadline) {
 
 function blockedScanMessage(status) {
   return `This website blocked automated scanning (HTTP ${status}). This usually happens when Cloudflare, a firewall, bot protection, or hosting security blocks server-side crawlers.`;
+}
+
+function websiteUnavailableError(message, httpStatus = null) {
+  const error = new Error(message);
+  error.code = "WEBSITE_UNAVAILABLE";
+  error.websiteFailure = true;
+  error.httpStatus = httpStatus;
+  error.score = 0;
+  return error;
+}
+
+export function detectNonOperationalHomepage($, finalUrl, responseStatus) {
+  const hostname = new URL(finalUrl).hostname.toLowerCase().replace(/^www\./, "");
+  const title = $("title").first().text().replace(/\s+/g, " ").trim();
+  const h1 = $("h1").first().text().replace(/\s+/g, " ").trim();
+  const body = $("body").text().replace(/\s+/g, " ").trim();
+  const evidence = `${title} ${h1} ${body.slice(0, 3000)}`;
+  if (["example.com", "example.org", "example.net"].includes(hostname) || /this domain is for use in illustrative examples/i.test(evidence)) {
+    return "This is a reserved example domain, not an operational business website.";
+  }
+  if (/domain (?:name )?(?:has )?expired|this domain has expired|renew (?:this|your) domain|domain renewal required|registration has expired/i.test(evidence)) {
+    return "The domain appears to be expired or awaiting renewal.";
+  }
+  if (/domain (?:is )?for sale|buy this domain|make an offer for this domain|sedo domain parking|afternic|hugedomains|domain parking|parked (?:domain|page)|this web page is parked/i.test(evidence)) {
+    return "The domain appears to be parked or listed for sale.";
+  }
+  if (/account suspended|website suspended|hosting account (?:has been )?suspended|default web site page|site is currently unavailable/i.test(evidence)) {
+    return "The website appears to be suspended or not configured on its hosting server.";
+  }
+  if (/page not found|404 not found|the requested page could not be found|this page doesn.?t exist/i.test(`${title} ${h1} ${body.slice(0, 800)}`)) {
+    return "The homepage is returning a soft-404 or page-not-found response.";
+  }
+  return "";
+}
+
+export function detectIncompleteJavascriptShell($) {
+  const body = $("body").text().replace(/\s+/g, " ").trim();
+  const visibleWords = body.split(/\s+/).filter(Boolean).length;
+  const hasAppMount = $("#root, #app, #__next, [data-reactroot]").length > 0;
+  const hasScripts = $("script[src], script[type='module']").length > 0;
+  const hasJavascriptFallbackText = /you need to enable javascript to run this app|please enable javascript to (?:continue|view|use)|javascript is required to (?:view|use|run)/i.test(body);
+  const explicitJavascriptFallback = hasJavascriptFallbackText && visibleWords < 40;
+  const emptyApplicationShell = visibleWords < 12 && hasAppMount && hasScripts && !$("main, article, h1").length;
+  if (explicitJavascriptFallback || emptyApplicationShell) {
+    return {
+      incomplete: true,
+      reason: explicitJavascriptFallback
+        ? `The server returned only a JavaScript-required placeholder (${visibleWords} visible words).`
+        : `The server returned an empty application shell (${visibleWords} visible words).`,
+    };
+  }
+  return { incomplete: false, reason: "" };
 }
 
 function analyzeMetadata($) {
@@ -587,7 +640,14 @@ function analyzeEEAT($, url, text) {
   };
 }
 
-function extractEntities($, metadata, text, sourceUrl = "", sourceName = "homepage") {
+function cleanEntityLabel(value, { maxWords = 8, maxLength = 70 } = {}) {
+  const label = decodeHtmlText(String(value || "")).replace(/\s+/g, " ").trim().replace(/^[|:,\-–—]+|[|:,\-–—]+$/g, "");
+  if (!label || label.length > maxLength || label.split(/\s+/).length > maxWords) return "";
+  if (/^(services?|products?|expertise|solutions?|resources?|learn more|read more|view all)$/i.test(label)) return "";
+  return label;
+}
+
+export function extractEntities($, metadata, text, sourceUrl = "", sourceName = "homepage") {
   const html = $.html();
   const schemaNodes = collectJsonLdNodes($);
   const schemaText = JSON.stringify(schemaNodes);
@@ -595,11 +655,17 @@ function extractEntities($, metadata, text, sourceUrl = "", sourceName = "homepa
   const serviceNodes = schemaNodes.filter((node) => schemaTypesFor(node).includes("Service"));
   const productNodes = schemaNodes.filter((node) => schemaTypesFor(node).some((type) => ["Product", "SoftwareApplication", "WebApplication"].includes(type)));
   const schemaCompanyName = schemaTextValue(organizationNode?.name);
+  const logoName = cleanEntityLabel($("header img[alt], nav img[alt], img[src*='logo' i][alt]").map((_, el) => $(el).attr("alt")).get().find((value) => value && !/^logo$/i.test(value)), { maxWords: 6, maxLength: 60 });
   const companyName = metadata.title?.split(/[|-]/)[0]?.trim() || text.match(/(?:©|Copyright)\s+\d{4}\s+([^.\n]+)/i)?.[1]?.trim() || "";
   const schemaEmails = schemaNodes.map((node) => schemaTextValue(node.email));
   const linkHrefs = $("a[href]").map((_, el) => safeDecode($(el).attr("href") || "")).get();
-  const plainTextEmails = text.match(EMAIL_PATTERN) || [];
-  const obfuscatedEmails = normalizeObfuscatedContacts(text).match(EMAIL_PATTERN) || [];
+  const directTextSegments = $("body *").contents().filter((_, node) => {
+    if (node.type !== "text") return false;
+    const parentHref = $(node.parent).attr("href") || "";
+    return !/^mailto:/i.test(parentHref);
+  }).map((_, node) => String(node.data || "").trim()).get().filter(Boolean);
+  const plainTextEmails = directTextSegments.flatMap((segment) => segment.match(EMAIL_PATTERN) || []);
+  const obfuscatedEmails = directTextSegments.flatMap((segment) => normalizeObfuscatedContacts(segment).match(EMAIL_PATTERN) || []);
   const mailtoEmails = linkHrefs.flatMap((href) => href.match(/^mailto:([^?]+)/i)?.[1]?.match(EMAIL_PATTERN) || []);
   const telPhones = linkHrefs.flatMap((href) => {
     const value = href.match(/^tel:([^?]+)/i)?.[1] || "";
@@ -620,17 +686,26 @@ function extractEntities($, metadata, text, sourceUrl = "", sourceName = "homepa
   const contactSources = uniqueBy([...emailSources, ...phoneSources].filter((item) => item.value), (item) => `${item.type}:${item.value}:${item.sourceUrl || item.sourceName}`);
   const emails = unique(contactSources.filter((item) => item.type === "email").map((item) => item.value));
   const phones = unique(contactSources.filter((item) => item.type === "phone").map((item) => item.value)).slice(0, 5);
-  const schemaServices = serviceNodes.map((node) => schemaTextValue(node.name));
-  const visibleServices = $("h1,h2,h3,a").map((_, el) => $(el).text().trim()).get().filter((value) => /service|solution|product|platform|consulting|software|agency/i.test(value));
-  const services = unique([...schemaServices, ...visibleServices]).slice(0, 10);
+  const schemaServices = serviceNodes.map((node) => cleanEntityLabel(schemaTextValue(node.name))).filter(Boolean);
+  const linkedServices = $("a[href]").map((_, el) => {
+    if (!/(?:^|\/)services?(?:\/|$|\?|#)/i.test($(el).attr("href") || "")) return "";
+    const heading = $(el).find("h1,h2,h3,h4,h5,h6").first().text();
+    return cleanEntityLabel(heading || $(el).text());
+  }).get().filter(Boolean);
+  const headedServices = $("h1,h2,h3").map((_, el) => cleanEntityLabel($(el).text())).get().filter((value) => value && /\b(?:service|consulting|strategy|branding|design|development|seo|marketing|software)\b/i.test(value));
+  const services = unique([...schemaServices, ...linkedServices, ...headedServices]).slice(0, 10);
   const locations = unique((text.match(/\b[A-Z][a-z]+,\s+[A-Z]{2}\b/g) || []).slice(0, 8));
   const founders = unique((text.match(/founder(?:s)?(?:\s+and\s+CEO)?\s*(?:is|:)?\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,2})/g) || []).slice(0, 5));
-  const address = text.match(/\d{1,6}\s+[A-Za-z0-9 .'-]+(?:Street|St|Road|Rd|Avenue|Ave|Suite|Floor|Blvd|Lane|Ln)[^.\n]*/i)?.[0] || "";
-  const detectedCompanyName = schemaCompanyName || companyName;
-  const score = clampScore((detectedCompanyName ? 20 : 0) + (emails.length ? 15 : 0) + (phones.length ? 15 : 0) + (address ? 15 : 0) + (services.length ? 20 : 0) + (/Organization|LocalBusiness|Product|Service/i.test(schemaText) ? 15 : 0));
-  const schemaProducts = productNodes.map((node) => schemaTextValue(node.name));
-  const products = unique([...schemaProducts, ...services.filter((s) => /product|platform|software/i.test(s))]).slice(0, 10);
-  return { score, companyName: detectedCompanyName, brand: metadata.title || detectedCompanyName, products, services, founders, phones, emails, contactSources, address, locations, htmlSignals: html.length };
+  const streetAddress = text.match(/\d{1,6}\s+[A-Za-z0-9 .'-]+\b(?:Street|St|Road|Rd|Avenue|Ave|Suite|Floor|Blvd|Lane|Ln)\b[^.\n]*/i)?.[0] || "";
+  const poBoxAddress = text.match(/P\.?\s*O\.?\s+Box\s+\d+,\s*[A-Za-z .'-]+,\s*[A-Za-z .'-]+\s+\d{5}(?:-\d{4})?/i)?.[0] || "";
+  const address = poBoxAddress || streetAddress;
+  const detectedCompanyName = schemaCompanyName || logoName || companyName;
+  const hasSchemaEntity = /Organization|LocalBusiness|Product|Service/i.test(schemaText);
+  const score = clampScore((detectedCompanyName ? 20 : 0) + (emails.length ? 15 : 0) + (phones.length ? 15 : 0) + (address ? 15 : 0) + (services.length ? 20 : 0) + (hasSchemaEntity ? 15 : 0));
+  const schemaProducts = productNodes.map((node) => cleanEntityLabel(schemaTextValue(node.name))).filter(Boolean);
+  const linkedProducts = $("a[href]").map((_, el) => /(?:^|\/)products?(?:\/|$|\?|#)/i.test($(el).attr("href") || "") ? cleanEntityLabel($(el).text()) : "").get().filter(Boolean);
+  const products = unique([...schemaProducts, ...linkedProducts]).slice(0, 10);
+  return { score, companyName: detectedCompanyName, brand: metadata.title || detectedCompanyName, products, services, founders, phones, emails, contactSources, address, locations, hasSchemaEntity, htmlSignals: html.length };
 }
 
 function entityScore(entity, hasSchemaSignal = false) {
@@ -649,6 +724,7 @@ function mergeEntities(primary, extras = []) {
     emails: unique([...(current.emails || []), ...(extra.emails || [])]).slice(0, 5),
     phones: unique([...(current.phones || []), ...(extra.phones || [])]).slice(0, 5),
     locations: unique([...(current.locations || []), ...(extra.locations || [])]).slice(0, 8),
+    hasSchemaEntity: Boolean(current.hasSchemaEntity || extra.hasSchemaEntity),
     contactSources: uniqueBy([...(current.contactSources || []), ...(extra.contactSources || [])], (item) => `${item.type}:${item.value}:${item.sourceUrl || item.sourceName}`),
     htmlSignals: (current.htmlSignals || 0) + (extra.htmlSignals || 0),
     scannedContactPages: unique([...(current.scannedContactPages || []), ...(extra.scannedContactPages || [])]),
@@ -658,7 +734,7 @@ function mergeEntities(primary, extras = []) {
     ...merged,
     companyName: decodeHtmlText(merged.companyName),
     brand: decodeHtmlText(merged.brand),
-    score: Math.max(primary.score || 0, entityScore(merged, Boolean(merged.services?.length || merged.products?.length))),
+    score: Math.max(primary.score || 0, entityScore(merged, merged.hasSchemaEntity)),
   };
 }
 
@@ -771,45 +847,27 @@ function estimatePerformanceFromResponse(response, reason = "Lighthouse is disab
   };
 }
 
-async function runPageSpeedFallback(url) {
-  const key = process.env.GOOGLE_PAGESPEED_API_KEY;
-  if (!key) return null;
-  const response = await axios.get("https://www.googleapis.com/pagespeedonline/v5/runPagespeed", {
-    timeout: 30000,
-    params: { url, key, strategy: "mobile", category: ["performance", "accessibility", "seo", "best-practices"] },
-    paramsSerializer: { indexes: null },
-  });
-  const categories = response.data?.lighthouseResult?.categories || {};
-  const scoreFor = (name) => Number.isFinite(categories[name]?.score)
-    ? clampScore(categories[name].score * 100)
-    : null;
-  return {
-    score: scoreFor("performance"),
-    performance: scoreFor("performance"),
-    accessibility: scoreFor("accessibility"),
-    seo: scoreFor("seo"),
-    bestPractices: scoreFor("best-practices"),
-    source: "Google PageSpeed Insights",
-    strategy: "mobile",
-    fallback: false,
-    skipped: false,
-    error: null,
-  };
+export function validateLighthouseResult(result) {
+  const runtimeError = result?.lhr?.runtimeError;
+  const categories = result?.lhr?.categories || {};
+  const names = ["performance", "accessibility", "seo", "best-practices"];
+  const values = names.map((name) => categories[name]?.score).filter(Number.isFinite);
+  if (runtimeError) return { valid: false, reason: runtimeError.message || runtimeError.code || "Lighthouse reported a runtime error." };
+  if (!Number.isFinite(categories.performance?.score)) return { valid: false, reason: "Lighthouse returned no performance score." };
+  if (values.length && values.every((value) => value === 0)) return { valid: false, reason: "Lighthouse returned an incomplete all-zero report." };
+  return { valid: true, reason: "" };
 }
 
 async function runLighthouse(url, initialResponse) {
-  if (process.env.ENABLE_LIGHTHOUSE !== "true") {
-    return estimatePerformanceFromResponse(initialResponse);
+  if (process.env.ENABLE_LIGHTHOUSE === "false") {
+    return estimatePerformanceFromResponse(initialResponse, "Local Lighthouse is disabled.");
   }
 
   let browser;
   try {
     await assertPublicUrl(url);
-    const [{ default: puppeteer }, { default: lighthouse }] = await Promise.all([
-      import("puppeteer"),
-      import("lighthouse"),
-    ]);
-    browser = await puppeteer.launch({ headless: true, args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"] });
+    const { default: lighthouse } = await import("lighthouse");
+    browser = await launchBrowser();
     const endpoint = new URL(browser.wsEndpoint());
     const result = await Promise.race([
       lighthouse(url, {
@@ -820,23 +878,26 @@ async function runLighthouse(url, initialResponse) {
       }),
       timeoutAfter(LIGHTHOUSE_TIMEOUT, "Lighthouse timed out. The rest of the report was still generated."),
     ]);
+    const validation = validateLighthouseResult(result);
+    if (!validation.valid) throw new Error(validation.reason);
     const categories = result.lhr.categories;
+    const categoryScore = (name) => Number.isFinite(categories[name]?.score) ? clampScore(categories[name].score * 100) : null;
+    const performanceScore = categoryScore("performance");
+    if (!Number.isFinite(performanceScore)) throw new Error("Lighthouse returned no measurable performance category.");
     return {
-      score: clampScore((categories.performance.score || 0) * 100),
-      performance: clampScore((categories.performance.score || 0) * 100),
-      accessibility: clampScore((categories.accessibility.score || 0) * 100),
-      seo: clampScore((categories.seo.score || 0) * 100),
-      bestPractices: clampScore((categories["best-practices"].score || 0) * 100),
+      score: performanceScore,
+      performance: performanceScore,
+      accessibility: categoryScore("accessibility"),
+      seo: categoryScore("seo"),
+      bestPractices: categoryScore("best-practices"),
+      source: "Lighthouse",
+      strategy: "mobile",
+      fallback: false,
+      skipped: false,
       error: null,
     };
   } catch (error) {
-    try {
-      const pageSpeed = await runPageSpeedFallback(url);
-      if (pageSpeed) return pageSpeed;
-    } catch {
-      // A failed external fallback is reported as not measured, never as a zero score.
-    }
-    return estimatePerformanceFromResponse(initialResponse, "Lighthouse could not run on this server.");
+    return estimatePerformanceFromResponse(initialResponse, `Local Lighthouse could not run on this server: ${error.message}.`);
   } finally {
     if (browser) await browser.close();
   }
@@ -847,17 +908,8 @@ async function captureHomepagePreview(url) {
   const attempts = [];
   try {
     await assertPublicUrl(url);
-    const { default: puppeteer } = await import("puppeteer");
-    browser = await puppeteer.launch({
-      headless: true,
-      args: [
-        "--no-sandbox",
-        "--disable-setuid-sandbox",
-        "--disable-dev-shm-usage",
-        "--disable-gpu",
-        "--disable-web-security",
-        "--hide-scrollbars",
-      ],
+    browser = await launchBrowser({
+      args: ["--disable-gpu", "--disable-web-security", "--hide-scrollbars"],
     });
     for (const timeout of [10000, 16000]) {
       const page = await browser.newPage();
@@ -1091,7 +1143,14 @@ export async function scanWebsite(inputUrl, options = {}) {
   const scanStartedAt = Date.now();
   const scanDeadline = scanStartedAt + SCAN_DEADLINE_MS;
   const url = normalizeUrl(inputUrl);
-  await assertPublicUrl(url);
+  try {
+    await assertPublicUrl(url);
+  } catch (error) {
+    if (networkFailurePhase(error) === "dns") {
+      throw websiteUnavailableError(`Website unavailable: the domain could not be resolved. It may be expired, temporarily unavailable, or incorrectly configured. Technical detail: ${error.message}`);
+    }
+    throw error;
+  }
   let response;
   try {
     const startedAt = Date.now();
@@ -1105,11 +1164,14 @@ export async function scanWebsite(inputUrl, options = {}) {
         `Scan incomplete: the initial homepage request did not complete after ${attempts} attempt${attempts === 1 ? "" : "s"}. Failure stage: ${phase}. The website may still work normally in a browser; server-to-server requests can be delayed by hosting, DNS, TLS, a firewall, rate limiting, or bot protection. Please retry shortly.`
       );
     }
+    if (networkFailurePhase(error) === "dns") {
+      throw websiteUnavailableError(`Website unavailable: the domain could not be resolved. It may be expired, incorrectly configured, or offline. Technical detail: ${error.message}`);
+    }
     throw new Error(`We could not reach this website. Please check that the URL is correct, the site is online, and it can be opened publicly. Technical detail: ${error.message}`);
   }
 
   if ([401, 403].includes(response.status)) {
-    throw new Error(blockedScanMessage(response.status));
+    throw websiteUnavailableError(`Website unavailable for scanning: HTTP ${response.status}. ${blockedScanMessage(response.status)}`, response.status);
   }
 
   if (isTransientFailure(response.status)) {
@@ -1118,12 +1180,39 @@ export async function scanWebsite(inputUrl, options = {}) {
   }
 
   if (response.status >= 400) {
-    throw new Error(`The website returned HTTP ${response.status}.`);
+    throw websiteUnavailableError(`Website unavailable: the homepage returned HTTP ${response.status}. No readiness score was calculated.`, response.status);
   }
 
-  const finalUrl = response.finalUrl || url;
+  let finalUrl = response.finalUrl || url;
   await assertPublicUrl(finalUrl);
-  const $ = cheerio.load(response.data || "");
+  let $ = cheerio.load(response.data || "");
+  let javascriptShell = detectIncompleteJavascriptShell($);
+  if (javascriptShell.incomplete && !response.browserRenderedFallback) {
+    try {
+      const renderedResponse = await fetchWithBrowserTransport(finalUrl, scanDeadline, response.scanAttempts || []);
+      if (renderedResponse.status >= 400) {
+        throw new Error(`The browser renderer returned HTTP ${renderedResponse.status}.`);
+      }
+      response = { ...renderedResponse, durationMs: response.durationMs };
+      finalUrl = response.finalUrl || finalUrl;
+      await assertPublicUrl(finalUrl);
+      $ = cheerio.load(response.data || "");
+      javascriptShell = detectIncompleteJavascriptShell($);
+    } catch (error) {
+      throw new Error(
+        `Scan incomplete: this website sends automated crawlers an empty JavaScript application shell, and the browser-rendered page could not be captured. No readiness score was calculated. The website may work normally for visitors. Please retry later or enable a compatible browser runtime on the scanner host. Technical detail: ${error.message}`
+      );
+    }
+  }
+  if (javascriptShell.incomplete) {
+    throw new Error(
+      `Scan incomplete: ${javascriptShell.reason} The browser-rendered content was still unavailable, so no readiness score was calculated.`
+    );
+  }
+  const nonOperationalReason = detectNonOperationalHomepage($, finalUrl, response.status);
+  if (nonOperationalReason) {
+    throw websiteUnavailableError(`Website unavailable or non-operational: ${nonOperationalReason} No readiness score was calculated.`, response.status);
+  }
   const metadata = analyzeMetadata($);
   const schema = analyzeSchema($);
   const headings = analyzeHeadings($);
@@ -1142,7 +1231,7 @@ export async function scanWebsite(inputUrl, options = {}) {
   const entities = mergeEntities(homepageEntities, contactPageEntities);
   const scored = scoreAll({ metadata, schema, performance, content, eeat, entities, robots, sitemap, links, images });
   const [siteAudit, externalVerification] = await Promise.all([
-    runSiteAudit(finalUrl, { profile: options.profile || "auto", robots, performance, homepageInternalUrls: links.sampleInternal || [], deadline: scanDeadline }),
+    runSiteAudit(finalUrl, { profile: options.profile || "saas", robots, performance, homepageInternalUrls: links.sampleInternal || [], deadline: scanDeadline }),
     runExternalVerification(finalUrl),
   ]);
   const baseRecommendations = buildRecommendations({ metadata, schema, headings, images, links, content, eeat, robots, sitemap, performance, entities });

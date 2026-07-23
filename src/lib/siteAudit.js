@@ -5,6 +5,7 @@ import { parseStringPromise } from "xml2js";
 import robotsParser from "robots-parser";
 import { assertPublicUrl } from "./security.js";
 import { clampScore, profileAwareScore } from "./scoring.js";
+import { launchBrowser } from "./browser.js";
 
 const USER_AGENT = "ScanSiteAI/2.0 (+https://scansiteai.com)";
 const BROWSER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/126 Safari/537.36";
@@ -12,7 +13,7 @@ const PAGE_LIMIT = 20;
 const SITEMAP_LIMIT = 12;
 const RENDER_LIMIT = 8;
 const TIMEOUT = 10000;
-const PROFILE_VALUES = new Set(["auto", "local_business", "saas", "ecommerce", "publisher", "agency", "api"]);
+const PROFILE_VALUES = new Set(["local_business", "saas", "ecommerce", "publisher", "agency", "api"]);
 const AI_BOTS = [
   { bot: "GPTBot", purpose: "training" },
   { bot: "OAI-SearchBot", purpose: "search" },
@@ -508,8 +509,7 @@ async function renderPages(urls, deadline = null) {
   if (process.env.ENABLE_RENDERED_SCAN === "false") return new Map();
   let browser;
   try {
-    const { default: puppeteer } = await import("puppeteer");
-    browser = await puppeteer.launch({ headless: true, args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"] });
+    browser = await launchBrowser();
     const output = new Map();
     for (const url of urls.slice(0, RENDER_LIMIT)) {
       if (deadline && Date.now() >= deadline - 2500) break;
@@ -532,16 +532,9 @@ async function renderPages(urls, deadline = null) {
   }
 }
 
-function detectProfile(pages, requested = "auto") {
-  if (PROFILE_VALUES.has(requested) && requested !== "auto") return { value: requested, source: "selected", confidence: "high" };
-  const corpus = pages.map((page) => `${page.url} ${page.title} ${page.schema.types.join(" ")}`).join(" ").toLowerCase();
-  const rules = [
-    ["ecommerce", /product|offer|cart|shop|checkout/], ["local_business", /localbusiness|postaladdress|openinghours|locations?/],
-    ["publisher", /article|newsarticle|blogposting|\/blog|\/news/], ["api", /api|developer|documentation|openapi/],
-    ["agency", /agency|consulting|services|client/], ["saas", /softwareapplication|webapplication|platform|saas/],
-  ];
-  const match = rules.find(([, pattern]) => pattern.test(corpus));
-  return { value: match?.[0] || "saas", source: "detected", confidence: match ? "medium" : "low" };
+function detectProfile(_pages, requested = "saas") {
+  if (PROFILE_VALUES.has(requested)) return { value: requested, source: "selected", confidence: "high" };
+  return { value: "saas", source: "fallback", confidence: "low" };
 }
 
 function average(values, fallback = 0) {
@@ -664,7 +657,7 @@ function buildCategories(pages, robots, sitemap, performance, entityAnalysis, me
   };
 }
 
-export async function runSiteAudit(baseUrl, { profile = "auto", robots = null, performance = null, homepageInternalUrls = [], deadline = null } = {}) {
+export async function runSiteAudit(baseUrl, { profile = "saas", robots = null, performance = null, homepageInternalUrls = [], deadline = null } = {}) {
   const startedAt = Date.now();
   const discoveryFiles = await analyzeDiscoveryFiles(baseUrl, robots, deadline);
   const sitemap = await discoverSitemaps(baseUrl, discoveryFiles.robotsRaw, deadline);

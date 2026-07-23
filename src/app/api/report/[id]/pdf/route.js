@@ -4,6 +4,7 @@ import mongoose from "mongoose";
 import { connectToDatabase } from "@/lib/db";
 import Lead from "@/models/Lead";
 import Submission from "@/models/Submission";
+import { launchBrowser } from "@/lib/browser";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -49,8 +50,7 @@ export async function GET(request, { params }) {
     const overallScore = submission?.overallScore ?? lead.overallScore ?? report.overallScore ?? "N/A";
     const image = await readFile(path.join(process.cwd(), "public", "logo.png"));
     const html = createReportHtml({ report, website, overallScore, logo: `data:image/png;base64,${image.toString("base64")}` });
-    const { default: puppeteer } = await import("puppeteer");
-    browser = await puppeteer.launch({ headless: true, args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"] });
+    browser = await launchBrowser();
     const page = await browser.newPage();
     await page.setContent(html, { waitUntil: "networkidle0", timeout: 30000 });
     const pdf = await page.pdf({ format: "A4", printBackground: true, displayHeaderFooter: true, margin: { top: "14mm", right: "12mm", bottom: "18mm", left: "12mm" }, headerTemplate: "<span></span>", footerTemplate: '<div style="width:100%;padding:0 12mm;color:#718078;font:9px Arial;display:flex;justify-content:space-between"><span>ScanSiteAI · Client Readiness Report</span><span><span class="pageNumber"></span> / <span class="totalPages"></span></span></div>' });

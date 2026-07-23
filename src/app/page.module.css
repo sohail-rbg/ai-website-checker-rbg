@@ -658,13 +658,37 @@
   z-index: 1;
   width: 100%;
   max-width: 1120px;
-  min-height: 82px;
+  min-height: 108px;
   margin: 38px auto 0;
   overflow: hidden;
-  border-top: 1px solid rgba(139, 156, 140, 0.16);
-  border-bottom: 1px solid rgba(139, 156, 140, 0.12);
-  padding: 24px 0;
+  border: 1px solid rgba(144, 238, 154, 0.16);
+  border-radius: 24px;
+  padding: 25px 28px;
+  background: linear-gradient(110deg, rgba(13, 35, 24, 0.92), rgba(4, 12, 8, 0.86));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.035), 0 22px 70px rgba(0,0,0,.25);
 }
+
+.bandAction {
+  position: relative;
+  z-index: 2;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 9px;
+  border-radius: 999px;
+  padding: 12px 17px;
+  background: #9fe0a8;
+  color: #031008;
+  font-size: .86rem;
+  font-weight: 800;
+  transition: transform .2s ease, background .2s ease;
+}
+
+.bandAction:hover { transform: translateY(-2px); background: #b8f4bf; }
 
 .bandIcon {
   display: grid;
@@ -811,8 +835,14 @@
 
 .answerEnginePanel {
   display: grid;
-  gap: 24px;
-  padding: 54px 0;
+  gap: 30px;
+  padding: 44px;
+  border: 1px solid rgba(139, 156, 140, 0.14);
+  border-radius: 30px;
+  background:
+    radial-gradient(circle at 85% 0%, rgba(144, 238, 154, 0.07), transparent 30%),
+    linear-gradient(145deg, rgba(7, 16, 12, 0.92), rgba(2, 7, 5, 0.95));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.03), 0 28px 90px rgba(0,0,0,.22);
 }
 
 .answerEngineHeader {
@@ -832,16 +862,24 @@
 .signalList {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
+  gap: 12px;
 }
 
 .signalList article {
   display: flex;
   gap: 14px;
-  border-top: 1px solid rgba(139, 156, 140, 0.12);
-  padding: 22px 0 0;
+  min-height: 150px;
+  border: 1px solid rgba(139, 156, 140, 0.12);
+  border-radius: 20px;
+  padding: 20px;
+  background: rgba(255,255,255,.022);
   color: #90ee9a;
+  transition: transform .2s ease, border-color .2s ease, background .2s ease;
 }
+
+.signalList article:hover { transform: translateY(-3px); border-color: rgba(144,238,154,.28); background: rgba(144,238,154,.045); }
+
+.signalList article > svg { flex: 0 0 auto; padding: 5px; width: 32px; height: 32px; border-radius: 10px; background: rgba(144,238,154,.09); }
 
 .signalList h3 {
   margin: 0;
@@ -856,6 +894,20 @@
   font-size: 0.88rem;
   line-height: 1.7;
 }
+
+.faqPreview {
+  margin-top: 10px;
+  border-top: 1px solid rgba(139, 156, 140, 0.14);
+  padding-top: 36px;
+}
+
+.faqLayout { display: grid; grid-template-columns: minmax(250px,.48fr) minmax(0,1fr); gap: 46px; align-items: start; }
+.faqIntro { position: sticky; top: 100px; }
+.faqIntroCopy { max-width: 340px; margin: 18px 0 0; color: rgba(217,225,216,.62); font-size: .9rem; line-height: 1.7; }
+.faqList { display: grid; gap: 10px; }
+.faqItem { border: 1px solid rgba(139,156,140,.12); border-radius: 18px; padding: 18px 20px; background: rgba(255,255,255,.018); transition: border-color .2s ease, background .2s ease; }
+.faqItem:hover, .faqItem[open] { border-color: rgba(144,238,154,.23); background: rgba(144,238,154,.035); }
+.faqItem summary { min-height: 32px; }
 
 .faqPanel {
   border-top: 1px solid rgba(139, 156, 140, 0.12);
@@ -1119,9 +1171,12 @@
 
   .productPanel,
   .answerEngineHeader,
-  .signalList {
+  .signalList,
+  .faqLayout {
     grid-template-columns: 1fr;
   }
+
+  .faqIntro { position: static; }
 
   .productCopy {
     min-height: auto;
@@ -1256,7 +1311,7 @@
 
   .productPanel,
   .answerEnginePanel {
-    padding: 36px 0;
+    padding: 28px;
   }
 
   .insightStats {
@@ -1278,7 +1333,8 @@
   }
 
   .signalList article {
-    padding: 18px 0 0;
+    min-height: 0;
+    padding: 18px;
   }
 
   .faqPanel {
@@ -1287,7 +1343,9 @@
 
   .heroBand {
     margin-top: 30px;
-    padding: 20px 0;
+    padding: 22px;
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .heroBand > div {
