@@ -97,6 +97,10 @@ function buildReportEmail({ website, overallScore, grade, topImprovements, repor
     `Grade: ${grade || "N/A"}`,
     wantsCall ? "Call request: Yes" : "Call request: No",
     "",
+    `Open your hosted report: ${reportUrl}`,
+    "Talk with a ScanSiteAI expert about these fixes.",
+    `Schedule a focused 15-minute review: ${consultationUrl}`,
+    "",
     "Top Improvements:",
     ...topImprovements.map((item, index) => `${index + 1}. ${item}`),
     "",
@@ -121,9 +125,6 @@ function buildReportEmail({ website, overallScore, grade, topImprovements, repor
     "",
     `All Improvements (${recommendations.length}):`,
     ...recommendations.map((item, index) => `${index + 1}. ${item.title} - ${item.howToFix || item.description}`),
-    "",
-    "Talk with a ScanSiteAI expert about these fixes.",
-    `Schedule a focused 15-minute review: ${consultationUrl}`,
     "",
     "Thank you for using ScanSiteAI.",
   ].join("\n");
@@ -156,6 +157,21 @@ function buildReportEmail({ website, overallScore, grade, topImprovements, repor
               </tr>
               <tr>
                 <td style="background:#f6f7f4;padding:26px 30px">
+                  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:0 0 22px">
+                    <tr>
+                      <td style="border-radius:22px;background:#071c15;background-image:linear-gradient(135deg,#071c15,#16382d);border:1px solid #2E5E53;padding:24px;color:#ffffff">
+                        <p style="margin:0 0 8px;color:#90ee9a;font-size:11px;font-weight:800;letter-spacing:.18em;text-transform:uppercase">Your next step</p>
+                        <h2 style="margin:0;color:#ffffff;font-size:23px;line-height:1.3">Review the report with a ScanSiteAI expert.</h2>
+                        <p style="margin:10px 0 0;color:#d9e1d8;font-size:14px;line-height:1.7">Turn the priority findings into a focused implementation plan during a 15-minute consultation.</p>
+                        <table role="presentation" cellspacing="0" cellpadding="0" style="margin-top:18px">
+                          <tr>
+                            <td style="padding:0 10px 8px 0"><a href="${escapeHtml(reportUrl)}" style="display:inline-block;border-radius:999px;background:#ffffff;color:#16382d;font-weight:800;text-decoration:none;padding:13px 20px">Open hosted report</a></td>
+                            <td style="padding:0 0 8px"><a href="${consultationUrl}" style="display:inline-block;border-radius:999px;background:#9fe0a8;color:#020302;font-weight:800;text-decoration:none;padding:13px 20px">Contact an expert →</a></td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+                  </table>
                   <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
                     <tr>
                       <td style="border-radius:20px;background:#ffffff;border:1px solid #dfe5dd;padding:22px">
@@ -227,16 +243,6 @@ function buildReportEmail({ website, overallScore, grade, topImprovements, repor
                         <p style="margin:0 0 6px;color:#374151"><strong>Company:</strong> ${escapeHtml(entities.companyName || "Not detected")}</p>
                         <p style="margin:0 0 6px;color:#374151"><strong>Email:</strong> ${escapeHtml((entities.emails || [])[0] || "Not detected")}</p>
                         <p style="margin:0;color:#374151"><strong>Phone:</strong> ${escapeHtml((entities.phones || [])[0] || "Not detected")}</p>
-                      </td>
-                    </tr>
-                  </table>
-                  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-top:24px">
-                    <tr>
-                      <td style="border-radius:22px;background:#071c15;background-image:linear-gradient(135deg,#071c15,#16382d);border:1px solid #2E5E53;padding:24px;color:#ffffff">
-                        <p style="margin:0 0 8px;color:#90ee9a;font-size:11px;font-weight:800;letter-spacing:.18em;text-transform:uppercase">Expert guidance</p>
-                        <h2 style="margin:0;color:#ffffff;font-size:23px;line-height:1.3">Talk with a ScanSiteAI expert about these fixes.</h2>
-                        <p style="margin:10px 0 0;color:#d9e1d8;font-size:14px;line-height:1.7">Review your priority recommendations and turn this audit into a focused implementation plan in a 15-minute call.</p>
-                        <a href="${consultationUrl}" style="display:inline-block;margin-top:18px;border-radius:999px;background:#9fe0a8;color:#020302;font-weight:800;text-decoration:none;padding:13px 20px">Schedule a 15-minute call →</a>
                       </td>
                     </tr>
                   </table>

@@ -15,20 +15,30 @@ export const metadata = createPageMetadata({
   follow: false,
 });
 
-function formatDateTime(value) {
+function formatDateTime(value, requestedTimeZone) {
   const date = value ? new Date(value) : null;
   if (!date || Number.isNaN(date.getTime())) return { date: "Not available", time: "Not available" };
+  let timeZone = String(requestedTimeZone || "").trim() || "UTC";
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone }).format(date);
+  } catch {
+    timeZone = "UTC";
+  }
 
   return {
     date: date.toLocaleDateString("en-US", {
       year: "numeric",
       month: "short",
       day: "numeric",
+      timeZone,
     }),
     time: date.toLocaleTimeString("en-US", {
-      hour: "2-digit",
+      hour: "numeric",
       minute: "2-digit",
+      timeZone,
+      timeZoneName: "short",
     }),
+    timeZone,
   };
 }
 
@@ -51,6 +61,16 @@ function formatBrowser(browser, userAgent) {
 function contactKey(type, value) {
   const clean = String(value || "").toLowerCase();
   return type === "phone" ? clean.replace(/\D/g, "") : clean;
+}
+
+function uniqueContacts(type, values) {
+  const seen = new Set();
+  return values.filter((value) => {
+    const key = contactKey(type, value);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function formatContactSource(scan, type, value) {
@@ -85,7 +105,9 @@ export default async function ScansPage({ searchParams }) {
     scans = await Scan.find({})
       .sort({ scannedAt: -1 })
       .limit(100)
-      .select("requestedUrl finalUrl email entityEmail entityPhone overallScore grade topRecommendations userAgent browser location scannedAt createdAt report.scoreBreakdown report.performance report.schema report.entities report.recommendations")
+      .select("requestedUrl finalUrl email entityEmail entityPhone lead submission overallScore grade topRecommendations userAgent browser location scannedAt createdAt report.scoreBreakdown report.performance report.schema report.entities report.recommendations")
+      .populate("submission", "reportUrl")
+      .populate("lead", "reportUrl")
       .lean();
   } catch (error) {
     dbError = error.message || "Could not load scan records.";
@@ -97,17 +119,17 @@ export default async function ScansPage({ searchParams }) {
   const needsWork = scans.filter((scan) => Number(scan.overallScore) < 75).length;
   const excellent = scans.filter((scan) => Number(scan.overallScore) >= 90).length;
   const scanRows = scans.map((scan) => {
-    const scanned = formatDateTime(scan.scannedAt || scan.createdAt);
+    const scanned = formatDateTime(scan.scannedAt || scan.createdAt, scan.location?.timezone);
     const topRecommendation = scan.topRecommendations?.[0] || scan.report?.recommendations?.[0]?.title || "No priority fix";
     const company = scan.report?.entities?.companyName || "Not detected";
     const performance = scan.report?.performance?.performance ?? scan.report?.scoreBreakdown?.performance ?? "N/A";
     const location = formatLocation(scan.location);
     const country = formatCountry(scan.location);
     const browser = formatBrowser(scan.browser, scan.userAgent);
-    const displayEmail = scan.email || scan.entityEmail || scan.report?.entities?.emails?.[0] || "";
-    const displayPhone = scan.entityPhone || scan.report?.entities?.phones?.[0] || "";
-    const emailCount = scan.report?.entities?.emails?.length || (displayEmail ? 1 : 0);
-    const phoneCount = scan.report?.entities?.phones?.length || (displayPhone ? 1 : 0);
+    const submittedEmail = scan.email || "";
+    const detectedEmails = uniqueContacts("email", [scan.entityEmail, ...(scan.report?.entities?.emails || [])].filter(Boolean));
+    const detectedPhones = uniqueContacts("phone", [scan.entityPhone, ...(scan.report?.entities?.phones || [])].filter(Boolean));
+    const reportUrl = scan.submission?.reportUrl || scan.lead?.reportUrl || "";
     const website = scan.finalUrl || scan.requestedUrl;
     const score = Number.isFinite(Number(scan.overallScore)) ? Number(scan.overallScore) : null;
     const dateValue = new Date(scan.scannedAt || scan.createdAt || 0).getTime();
@@ -123,8 +145,9 @@ export default async function ScansPage({ searchParams }) {
     const searchText = [
       website,
       scan.requestedUrl,
-      displayEmail,
-      displayPhone,
+      submittedEmail,
+      ...detectedEmails,
+      ...detectedPhones,
       location,
       country,
       browser,
@@ -142,20 +165,18 @@ export default async function ScansPage({ searchParams }) {
       id: String(scan._id),
       website,
       websiteHref: website,
-      requestedUrl: scan.requestedUrl || website,
-      email: displayEmail,
-      emailSource: !scan.email && displayEmail ? "entity" : "submitted",
-      emailSourceLabel: scan.email ? "Submitted email" : displayEmail ? formatContactSource(scan, "email", displayEmail) : "",
-      emailMoreCount: Math.max(emailCount - 1, 0),
-      phone: displayPhone,
-      phoneSourceLabel: displayPhone ? formatContactSource(scan, "phone", displayPhone) : "",
-      phoneMoreCount: Math.max(phoneCount - 1, 0),
+      redirected: Boolean(scan.requestedUrl && scan.requestedUrl !== website),
+      submittedEmail,
+      emails: detectedEmails.map((value) => ({ value, source: formatContactSource(scan, "email", value) })),
+      phones: detectedPhones.map((value) => ({ value, source: formatContactSource(scan, "phone", value) })),
+      reportUrl,
       location,
       country,
       browser,
       date: scanned.date,
       dateValue,
       time: scanned.time,
+      timeZone: scanned.timeZone,
       score,
       grade: scan.grade || "N/A",
       topRecommendation,

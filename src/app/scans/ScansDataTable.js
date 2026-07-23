@@ -4,9 +4,9 @@ import { useMemo, useState } from "react";
 
 const columns = [
   { key: "website", label: "Website URL", sortable: true },
-  { key: "requestedUrl", label: "Submitted URL", sortable: true },
-  { key: "email", label: "Email", sortable: true },
-  { key: "phone", label: "Phone", sortable: true },
+  { key: "submittedEmail", label: "Submitted Email", sortable: true },
+  { key: "emails", label: "Detected Emails", sortable: false },
+  { key: "phones", label: "Detected Phones", sortable: false },
   { key: "location", label: "Location", sortable: true },
   { key: "country", label: "Country", sortable: true },
   { key: "browser", label: "Browser", sortable: true },
@@ -15,7 +15,7 @@ const columns = [
   { key: "score", label: "Score", sortable: true },
   { key: "topRecommendation", label: "Top Recommendation", sortable: true },
   { key: "company", label: "Detected Entity", sortable: true },
-  { key: "details", label: "Details", sortable: false },
+  { key: "report", label: "Report", sortable: false },
 ];
 
 function scoreTone(score) {
@@ -127,45 +127,57 @@ export default function ScansDataTable({ rows }) {
                   <a href={row.websiteHref} target="_blank" rel="noreferrer" className="font-semibold text-white underline decoration-[#8B9C8C]/35 underline-offset-4 transition hover:text-[#9fe0a8]">
                     <span className="line-clamp-2 break-all">{row.website}</span>
                   </a>
-                  {row.requestedUrl !== row.website && <p className="mt-2 text-xs text-[#d9e1d8]/45">Resolved URL</p>}
+                  {row.redirected && <p className="mt-2 text-xs text-[#d9e1d8]/45">Resolved URL</p>}
                 </td>
-                <td className="max-w-[320px] px-5 py-5">
-                  {row.requestedUrl ? (
-                    <a href={row.requestedUrl} target="_blank" rel="noreferrer" className="font-semibold text-[#d9e1d8] underline decoration-[#8B9C8C]/30 underline-offset-4 transition hover:text-[#9fe0a8]">
-                      <span className="line-clamp-2 break-all">{row.requestedUrl}</span>
+                <td className="max-w-[240px] px-5 py-5">
+                  {row.submittedEmail ? (
+                    <a href={`mailto:${row.submittedEmail}`} className="font-semibold text-[#9fe0a8] underline decoration-[#8B9C8C]/35 underline-offset-4">
+                      <span className="line-clamp-2 break-all">{row.submittedEmail}</span>
                     </a>
                   ) : (
-                    <span className="text-[#d9e1d8]/45">Not available</span>
+                    <span className="text-[#d9e1d8]/45">Not submitted</span>
                   )}
-                  {row.requestedUrl !== row.website && <p className="mt-2 text-xs text-[#d9e1d8]/45">Submitted URL</p>}
                 </td>
-                <td className="max-w-[220px] px-5 py-5">
-                  {row.email ? (
-                    <a href={`mailto:${row.email}`} className="font-semibold text-[#9fe0a8] underline decoration-[#8B9C8C]/35 underline-offset-4">
-                      <span className="line-clamp-1 break-all">{row.email}</span>
-                    </a>
-                  ) : (
-                    <span className="text-[#d9e1d8]/45">Not detected</span>
-                  )}
-                  {row.emailSourceLabel && <p className="mt-1 text-xs text-[#d9e1d8]/45">{row.emailSourceLabel}</p>}
-                  {row.emailMoreCount > 0 && <p className="mt-1 text-xs text-[#9fe0a8]/70">+{row.emailMoreCount} more</p>}
-                </td>
-                <td className="max-w-[180px] px-5 py-5">
-                  {row.phone ? (
-                    <a href={`tel:${row.phone}`} className="font-semibold text-[#9fe0a8] underline decoration-[#8B9C8C]/35 underline-offset-4">
-                      <span className="line-clamp-1 break-all">{row.phone}</span>
-                    </a>
+                <td className="min-w-[240px] max-w-[300px] px-5 py-5">
+                  {row.emails.length ? (
+                    <ul className="grid gap-3">
+                      {row.emails.map((email) => (
+                        <li key={email.value}>
+                          <a href={`mailto:${email.value}`} className="block font-semibold text-[#9fe0a8] underline decoration-[#8B9C8C]/35 underline-offset-4">
+                            <span className="block break-all">{email.value}</span>
+                          </a>
+                          <span className="mt-1 block text-xs text-[#d9e1d8]/45">{email.source}</span>
+                        </li>
+                      ))}
+                    </ul>
                   ) : (
                     <span className="text-[#d9e1d8]/45">Not detected</span>
                   )}
-                  {row.phoneSourceLabel && <p className="mt-1 text-xs text-[#d9e1d8]/45">{row.phoneSourceLabel}</p>}
-                  {row.phoneMoreCount > 0 && <p className="mt-1 text-xs text-[#9fe0a8]/70">+{row.phoneMoreCount} more</p>}
+                </td>
+                <td className="min-w-[210px] max-w-[260px] px-5 py-5">
+                  {row.phones.length ? (
+                    <ul className="grid gap-3">
+                      {row.phones.map((phone) => (
+                        <li key={phone.value}>
+                          <a href={`tel:${phone.value}`} className="block font-semibold text-[#9fe0a8] underline decoration-[#8B9C8C]/35 underline-offset-4">
+                            <span className="block break-all">{phone.value}</span>
+                          </a>
+                          <span className="mt-1 block text-xs text-[#d9e1d8]/45">{phone.source}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <span className="text-[#d9e1d8]/45">Not detected</span>
+                  )}
                 </td>
                 <td className="max-w-[220px] px-5 py-5"><span className="line-clamp-2">{row.location}</span></td>
                 <td className="max-w-[160px] px-5 py-5"><span className="line-clamp-2">{row.country}</span></td>
                 <td className="max-w-[190px] px-5 py-5"><span className="line-clamp-2">{row.browser}</span></td>
                 <td className="px-5 py-5">{row.date}</td>
-                <td className="px-5 py-5">{row.time}</td>
+                <td className="min-w-[130px] px-5 py-5">
+                  <span>{row.time}</span>
+                  <span className="mt-1 block text-xs text-[#d9e1d8]/45">{row.timeZone}</span>
+                </td>
                 <td className="px-5 py-5">
                   <span className={`text-2xl font-semibold ${scoreTone(row.score)}`}>{row.score ?? "N/A"}</span>
                   <span className="ml-2 text-xs text-[#8B9C8C]">Grade {row.grade || "N/A"}</span>
@@ -173,18 +185,32 @@ export default function ScansDataTable({ rows }) {
                 <td className="max-w-[260px] px-5 py-5"><span className="line-clamp-2">{row.topRecommendation}</span></td>
                 <td className="max-w-[220px] px-5 py-5"><span className="line-clamp-2">{row.company}</span></td>
                 <td className="py-5 pl-5">
-                  <details className="max-w-[320px] rounded-2xl border border-[#8B9C8C]/15 bg-white/[0.03] p-3">
-                    <summary className="cursor-pointer font-semibold text-[#9fe0a8]">View signals</summary>
-                    <div className="mt-3 grid gap-2 text-xs leading-5 text-[#d9e1d8]/72">
-                      <p>Schema: {row.signals.schema}/100</p>
-                      <p>Content: {row.signals.content}/100</p>
-                      <p>EEAT: {row.signals.eeat}/100</p>
-                      <p>Entities: {row.signals.entities}/100</p>
-                      <p>Performance: {row.signals.performance}/100</p>
-                      <p>Schema types: {row.signals.schemaTypes || "None"}</p>
-                      <p>Contact pages: {row.signals.contactPages || "None"}</p>
+                  {row.reportUrl ? (
+                    <div className="max-w-[280px]">
+                      <a
+                        href={row.reportUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex rounded-full bg-[#9fe0a8] px-4 py-2.5 font-bold text-[#020302] transition hover:bg-white"
+                      >
+                        Open Hosted Report
+                      </a>
+                      <p className="mt-2 line-clamp-2 break-all text-xs text-[#d9e1d8]/45">{row.reportUrl}</p>
                     </div>
-                  </details>
+                  ) : (
+                    <details className="max-w-[320px] rounded-2xl border border-[#8B9C8C]/15 bg-white/[0.03] p-3">
+                      <summary className="cursor-pointer font-semibold text-[#9fe0a8]">View signals</summary>
+                      <div className="mt-3 grid gap-2 text-xs leading-5 text-[#d9e1d8]/72">
+                        <p>Schema: {row.signals.schema}/100</p>
+                        <p>Content: {row.signals.content}/100</p>
+                        <p>EEAT: {row.signals.eeat}/100</p>
+                        <p>Entities: {row.signals.entities}/100</p>
+                        <p>Performance: {row.signals.performance}/100</p>
+                        <p>Schema types: {row.signals.schemaTypes || "None"}</p>
+                        <p>Contact pages: {row.signals.contactPages || "None"}</p>
+                      </div>
+                    </details>
+                  )}
                 </td>
               </tr>
             ))}
