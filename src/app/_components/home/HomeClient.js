@@ -1387,7 +1387,9 @@ function TechnicalAuditSection({ report }) {
         `robots.txt: ${report.robots.exists ? "Found" : "Missing"}`,
         ...(report.robots.scannerBlocked ? [`Scanner access: HTTP ${report.robots.scannerStatus}; verified with browser fallback`] : []),
         `Blocked bots: ${report.robots.blockedBots.join(", ") || "None detected"}`,
-        `Sitemap URLs: ${report.sitemap.urlCount}`,
+        report.sitemap.exists == null
+          ? `Sitemap: Declared in robots.txt; verification incomplete`
+          : `Sitemap URLs: ${report.sitemap.urlCount}`,
       ],
     },
   ];

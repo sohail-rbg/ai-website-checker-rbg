@@ -11,8 +11,10 @@ const USER_AGENT = "ScanSiteAI/2.0 (+https://scansiteai.com)";
 const BROWSER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/126 Safari/537.36";
 const PAGE_LIMIT = 20;
 const SITEMAP_LIMIT = 12;
-const RENDER_LIMIT = 8;
+const RENDER_LIMIT = 4;
 const TIMEOUT = 10000;
+const PAGE_FETCH_TIMEOUT = 25000;
+const SITEMAP_TIMEOUT = 15000;
 const PROFILE_VALUES = new Set(["local_business", "saas", "ecommerce", "publisher", "agency", "api"]);
 const AI_BOTS = [
   { bot: "GPTBot", purpose: "training" },
@@ -60,7 +62,8 @@ async function get(url, options = {}, depth = 0) {
     error.code = "SCAN_DEADLINE";
     throw error;
   }
-  const timeout = options.deadline ? Math.max(750, Math.min(TIMEOUT, options.deadline - Date.now() - 500)) : TIMEOUT;
+  const timeoutCap = options.timeout || TIMEOUT;
+  const timeout = options.deadline ? Math.max(750, Math.min(timeoutCap, options.deadline - Date.now() - 500)) : timeoutCap;
   const response = await axios.get(url, {
     timeout,
     maxRedirects: 0,
@@ -142,7 +145,7 @@ async function analyzeDiscoveryFiles(baseUrl, existingRobots = null, deadline = 
 
 async function readSitemap(url, deadline = null) {
   const binary = /\.gz(?:\?|$)/i.test(url);
-  const response = await get(url, { responseType: binary ? "arraybuffer" : "text", deadline });
+  const response = await get(url, { responseType: binary ? "arraybuffer" : "text", deadline, timeout: SITEMAP_TIMEOUT });
   if (response.status >= 400) throw new Error(`HTTP ${response.status}`);
   const xml = binary ? gunzipSync(Buffer.from(response.data)).toString("utf8") : String(response.data);
   const parsed = await parseStringPromise(xml, { trim: true });
@@ -726,8 +729,8 @@ export async function runSiteAudit(baseUrl, { profile = "saas", robots = null, p
   const sitemap = await Promise.resolve(sitemapDiscovery || discoverSitemaps(baseUrl, discoveryFiles.robotsRaw, deadline));
   const selectedUrls = selectRepresentativeUrls(baseUrl, sitemap.urls.map((item) => item.url), homepageInternalUrls);
   const pageHeaders = robots?.scannerBlocked ? { "User-Agent": BROWSER_AGENT } : {};
-  const responses = await mapWithConcurrency(selectedUrls, 3, async (url) => {
-    try { return { url, response: await get(url, { deadline, headers: pageHeaders }) }; }
+  const responses = await mapWithConcurrency(selectedUrls, 5, async (url) => {
+    try { return { url, response: await get(url, { deadline, headers: pageHeaders, timeout: PAGE_FETCH_TIMEOUT }) }; }
     catch (error) { return { url, error: error.message }; }
   });
   const renderable = responses.filter((item) => item.response?.status < 400).map((item) => item.response.finalUrl || item.url);
