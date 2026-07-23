@@ -4,7 +4,6 @@ import robotsParser from "robots-parser";
 import { SCORE_WEIGHTS, clampScore, gradeFor, weightedAverageScore } from "./scoring.js";
 import { assertPublicUrl } from "./security.js";
 import { discoverSitemaps, runSiteAudit } from "./siteAudit.js";
-import { runExternalVerification } from "./externalVerification.js";
 import { launchBrowser } from "./browser.js";
 
 const BOT_AGENTS = ["GPTBot", "OAI-SearchBot", "ChatGPT-User", "ClaudeBot", "Claude-SearchBot", "Googlebot", "Google-Extended", "PerplexityBot", "Bingbot", "CCBot", "Amazonbot", "Applebot"];
@@ -1264,14 +1263,13 @@ export async function scanWebsite(inputUrl, options = {}) {
     sitemapDiscovery: sitemapDiscoveryPromise,
     deadline: scanDeadline,
   }));
-  const [robots, sitemap, performance, preview, contactPageEntities, siteAudit, externalVerification] = await Promise.all([
+  const [robots, sitemap, performance, preview, contactPageEntities, siteAudit] = await Promise.all([
     robotsPromise,
     robotsPromise.then((result) => analyzeSitemap(finalUrl, result.raw || "", scanDeadline, sitemapDiscoveryPromise)),
     performancePromise,
     captureHomepagePreview(finalUrl),
     extractContactPageEntities($, finalUrl),
     siteAuditPromise,
-    runExternalVerification(finalUrl),
   ]);
   const entities = mergeEntities(homepageEntities, contactPageEntities);
   const scored = scoreAll({ metadata, schema, performance, content, eeat, entities, robots, sitemap, links, images });
@@ -1386,7 +1384,6 @@ export async function scanWebsite(inputUrl, options = {}) {
     profile: siteAudit.profile,
     categoryScores: siteAudit.categoryScores,
     siteAudit,
-    externalVerification,
     scoringCalibration: { version: "2026.07-profile-v1", method: "Profile-weighted measured categories; unmeasured categories are excluded and scan confidence is reported separately.", profile: siteAudit.profile.value, benchmarkSuite: "tests/benchmarks/sites.json" },
     metadata,
     schema,

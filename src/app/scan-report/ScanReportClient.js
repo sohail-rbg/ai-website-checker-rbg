@@ -28,7 +28,10 @@ export default function ScanReportClient() {
   if (!ready) {
     return (
       <main className={`${styles.shell} grid min-h-screen place-items-center px-5 text-center`}>
-        <p className="text-[#d9e1d8]">Loading report...</p>
+        <div>
+          <h1 className="text-3xl font-semibold text-white">AI Website Readiness Report</h1>
+          <p className="mt-3 text-[#d9e1d8]">Loading report...</p>
+        </div>
       </main>
     );
   }

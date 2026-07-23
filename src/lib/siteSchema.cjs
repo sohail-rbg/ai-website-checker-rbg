@@ -3,7 +3,7 @@ function buildSiteJsonLd({ siteUrl, siteName, contactEmail, defaultDescription }
     "@context": "https://schema.org",
     "@graph": [
       {
-        "@type": ["Organization", "LocalBusiness"],
+        "@type": "Organization",
         "@id": `${siteUrl}/#organization`,
         name: siteName,
         url: siteUrl,

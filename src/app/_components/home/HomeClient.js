@@ -689,7 +689,7 @@ export function Dashboard({ report, onReset }) {
             <div>
               <div className="flex items-center gap-4">
                 <span className="h-9 w-1 rounded-full bg-[#90ee9a]" />
-                <h2 className="text-3xl font-semibold tracking-tight text-white">Report Dashboard</h2>
+                <h1 className="text-3xl font-semibold tracking-tight text-white">Report Dashboard</h1>
               </div>
               <p className="mt-3 text-base text-[#d9e1d8]/72">Overview of your AI Website Readiness scan and next best action.</p>
             </div>
@@ -900,7 +900,7 @@ export function Dashboard({ report, onReset }) {
 
       <EntityConsistencySection analysis={report.siteAudit?.entityAnalysis} />
 
-      <ScanReliabilitySection audit={report.siteAudit} verification={report.externalVerification} calibration={report.scoringCalibration} preview={report.preview} />
+      <ScanReliabilitySection audit={report.siteAudit} calibration={report.scoringCalibration} preview={report.preview} />
 
       <Section title="Readiness and action priorities">
         <div className="grid gap-5 lg:grid-cols-2">
@@ -1019,7 +1019,7 @@ function EntityConsistencySection({ analysis }) {
   );
 }
 
-function ScanReliabilitySection({ audit, verification, calibration, preview }) {
+function ScanReliabilitySection({ audit, calibration, preview }) {
   if (!audit?.diagnostics) return null;
   const summary = audit.diagnostics.summary;
   const schemaPages = audit.pages.filter((page) => page.schemaComparison?.measured);
@@ -1031,31 +1031,8 @@ function ScanReliabilitySection({ audit, verification, calibration, preview }) {
         <Card className="p-5"><p className="text-xs uppercase tracking-[0.16em] text-[#8B9C8C]">Schema comparison</p><p className="mt-3 text-sm leading-6 text-[#d9e1d8]">{schemaPages.length} pages compared · {schemaPages.filter((page) => page.schemaComparison.addedAfterJavaScript.length).length} with rendered-only schema</p></Card>
         <Card className="p-5"><p className="text-xs uppercase tracking-[0.16em] text-[#8B9C8C]">Preview</p><p className="mt-3 text-sm capitalize text-[#d9e1d8]">{preview?.status || (preview?.image ? "captured" : "unavailable")}</p><p className="mt-2 text-xs text-[#d9e1d8]/60">{preview?.attempts?.length || 0} capture attempts; never affects score</p></Card>
       </div>
-      <div className="grid gap-5 lg:grid-cols-2">
+      <div>
         <Card className="p-6"><h3 className="text-lg font-semibold text-white">Coverage evidence</h3><ul className="mt-4 grid gap-2 text-sm text-[#d9e1d8]/70">{audit.confidence.reasons.map((reason) => <li key={reason}>• {reason}</li>)}</ul><p className="mt-4 text-xs text-[#8B9C8C]">Scanner {audit.diagnostics.scannerVersion} · {audit.diagnostics.durationMs}ms · calibration {calibration?.version || "unversioned"}</p></Card>
-        <Card className="p-6">
-          <div className="flex items-center justify-between gap-3"><h3 className="text-lg font-semibold text-white">External verification</h3><span className="rounded-full border border-white/10 bg-white/[.04] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#d9e1d8]/60">Optional</span></div>
-          <div className="mt-4 grid gap-4">
-            {(verification?.results || []).map((item) => {
-              const summary = item.summary;
-              const statusColor = item.status === "verified" ? "text-[#9fe0a8]" : item.status === "unavailable" ? "text-rose-200" : "text-[#d9e1d8]/55";
-              return (
-                <div key={item.provider} className="border-b border-white/8 pb-4 text-sm">
-                  <div className="flex items-start justify-between gap-4"><span className="text-[#d9e1d8]">{item.provider}</span><span className={`shrink-0 capitalize ${statusColor}`}>{item.status.replaceAll("_", " ")}</span></div>
-                  {summary && <dl className="mt-3 grid gap-2 text-xs text-[#d9e1d8]/65 sm:grid-cols-2">
-                    <div><dt className="text-[#8B9C8C]">Google index verdict</dt><dd className="mt-1 text-[#d9e1d8]">{summary.verdict.replaceAll("_", " ")}</dd></div>
-                    <div><dt className="text-[#8B9C8C]">Coverage</dt><dd className="mt-1 text-[#d9e1d8]">{summary.coverageState || "Not reported"}</dd></div>
-                    <div><dt className="text-[#8B9C8C]">Last crawl</dt><dd className="mt-1 text-[#d9e1d8]">{summary.lastCrawlTime ? new Date(summary.lastCrawlTime).toLocaleString() : "Not reported"}</dd></div>
-                    <div><dt className="text-[#8B9C8C]">Crawled as</dt><dd className="mt-1 text-[#d9e1d8]">{summary.crawledAs?.replaceAll("_", " ") || "Not reported"}</dd></div>
-                    <div className="sm:col-span-2"><dt className="text-[#8B9C8C]">Google canonical</dt><dd className="mt-1 break-all text-[#d9e1d8]">{summary.googleCanonical || "Not reported"}</dd></div>
-                  </dl>}
-                  {(item.error || item.reason) && <p className={`mt-3 text-xs leading-5 ${item.status === "unavailable" ? "text-rose-200/85" : "text-[#d9e1d8]/55"}`}>{item.error || item.reason}</p>}
-                </div>
-              );
-            })}
-          </div>
-          <p className="mt-4 text-xs text-[#8B9C8C]">Search Console data is external Google index evidence. It does not replace Lighthouse performance measurement or affect readiness scores when unavailable.</p>
-        </Card>
       </div>
     </Section>
   );
