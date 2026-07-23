@@ -105,19 +105,6 @@ function buildSiteJsonLd({ siteUrl, siteName, contactEmail, defaultDescription }
         },
       },
       {
-        "@type": "Article",
-        "@id": `${siteUrl}/#article`,
-        headline: "How ScanSiteAI evaluates LLM visibility",
-        author: {
-          "@id": `${siteUrl}/#team`,
-        },
-        publisher: {
-          "@id": `${siteUrl}/#organization`,
-        },
-        mainEntityOfPage: siteUrl,
-        description: defaultDescription,
-      },
-      {
         "@type": "FAQPage",
         "@id": `${siteUrl}/#faq`,
         mainEntity: [
