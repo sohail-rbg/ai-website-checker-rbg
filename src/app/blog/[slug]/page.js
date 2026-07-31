@@ -7,6 +7,10 @@ import styles from "../../page.module.css";
 import { createPageMetadata, siteName, siteUrl } from "../../seo";
 import { blogPosts, getBlogPost } from "../posts";
 
+const articlePublishedAt = "2026-07-31T00:00:00.000Z";
+const articleModifiedAt = "2026-07-31T00:00:00.000Z";
+const articleImage = `${siteUrl}/logo.png`;
+
 export function generateStaticParams() {
   return blogPosts.map((post) => ({ slug: post.slug }));
 }
@@ -44,6 +48,14 @@ export default async function BlogPostPage({ params }) {
         "@id": `${siteUrl}/blog/${post.slug}#article`,
         headline: post.title,
         description: post.description,
+        image: {
+          "@type": "ImageObject",
+          url: articleImage,
+          width: 1200,
+          height: 630,
+        },
+        datePublished: articlePublishedAt,
+        dateModified: articleModifiedAt,
         author: {
           "@type": "Organization",
           name: siteName,
