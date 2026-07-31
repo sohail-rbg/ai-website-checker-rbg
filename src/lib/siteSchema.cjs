@@ -1,4 +1,4 @@
-function buildSiteJsonLd({ siteUrl, siteName, contactEmail, defaultDescription }) {
+function buildSiteJsonLd({ siteUrl, siteName, contactEmail, defaultDescription, sameAs = [] }) {
   return {
     "@context": "https://schema.org",
     "@graph": [
@@ -9,7 +9,7 @@ function buildSiteJsonLd({ siteUrl, siteName, contactEmail, defaultDescription }
         url: siteUrl,
         logo: `${siteUrl}/logo.png`,
         email: contactEmail,
-        sameAs: [siteUrl],
+        sameAs,
         makesOffer: {
           "@id": `${siteUrl}/#service`,
         },
@@ -84,29 +84,6 @@ function buildSiteJsonLd({ siteUrl, siteName, contactEmail, defaultDescription }
           "@id": `${siteUrl}/#organization`,
         },
         areaServed: "Worldwide",
-        offers: {
-          "@type": "Offer",
-          url: siteUrl,
-          price: "0",
-          priceCurrency: "USD",
-          availability: "https://schema.org/OnlineOnly",
-        },
-      },
-      {
-        "@type": "Product",
-        "@id": `${siteUrl}/#product`,
-        name: siteName,
-        url: siteUrl,
-        image: `${siteUrl}/logo.png`,
-        description: defaultDescription,
-        mainEntityOfPage: siteUrl,
-        isRelatedTo: [
-          { "@id": `${siteUrl}/#webapp` },
-          { "@id": `${siteUrl}/#service` },
-        ],
-        brand: {
-          "@id": `${siteUrl}/#organization`,
-        },
         offers: {
           "@type": "Offer",
           url: siteUrl,

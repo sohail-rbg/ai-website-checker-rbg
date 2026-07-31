@@ -270,6 +270,133 @@ function readinessSummary(report, primary) {
   return `${host} is ${level} for AI discovery.${strengthText}${nextText}`;
 }
 
+function averageMeasured(values) {
+  const measured = values.map((value) => Number(value)).filter(Number.isFinite);
+  if (!measured.length) return null;
+  return Math.round(measured.reduce((sum, value) => sum + value, 0) / measured.length);
+}
+
+function scoreStatus(score) {
+  if (!Number.isFinite(score)) return "Not measured";
+  if (score >= 80) return "Strong";
+  if (score >= 60) return "Improving";
+  if (score >= 45) return "Needs work";
+  return "At risk";
+}
+
+function calculateSearchModeScores(report) {
+  const breakdown = report.scoreBreakdown || {};
+  const platforms = Array.isArray(report.platformScores) ? report.platformScores : [];
+  const geoScore = averageMeasured(platforms.map((item) => item.readinessIndex ?? item.score));
+  const leadingPlatform = [...platforms]
+    .filter((item) => Number.isFinite(Number(item.readinessIndex ?? item.score)))
+    .sort((a, b) => Number(b.readinessIndex ?? b.score) - Number(a.readinessIndex ?? a.score))[0];
+  const measuredPlatformCount = platforms.filter((item) => Number.isFinite(Number(item.readinessIndex ?? item.score))).length;
+  const metadataScore = report.siteAudit?.metadataAnalysis?.score ?? breakdown.metadata;
+  const lighthouseSeoScore = report.performance?.seo;
+
+  return [
+    {
+      key: "seo",
+      label: "SEO Score",
+      shortLabel: "SEO",
+      icon: TrendingUp,
+      score: averageMeasured([
+        metadataScore,
+        lighthouseSeoScore,
+        breakdown.robots,
+        breakdown.sitemap,
+        breakdown.links,
+        breakdown.images,
+        report.siteAudit?.categoryScores?.crawlability?.score,
+      ]),
+      description: "Search engine crawlability, metadata, links, sitemap, image context and Lighthouse SEO signals.",
+      record: lighthouseSeoScore == null
+        ? "Lighthouse SEO was not measured; score uses technical SEO signals from the live audit."
+        : `Lighthouse SEO record: ${lighthouseSeoScore}/100.`,
+    },
+    {
+      key: "aeo",
+      label: "AEO Score",
+      shortLabel: "AEO",
+      icon: Bot,
+      score: averageMeasured([
+        breakdown.content,
+        breakdown.schema,
+        breakdown.eeat,
+        breakdown.entities,
+        breakdown.readability,
+        report.siteAudit?.categoryScores?.contentReadiness?.score,
+        report.siteAudit?.categoryScores?.trustEvidence?.score,
+      ]),
+      description: "Answer Engine Optimization readiness for direct answers, schema, entities, trust and quote-friendly content.",
+      record: `${report.siteAudit?.diagnostics?.summary?.pass ?? 0} passed checks recorded across the scan.`,
+    },
+    {
+      key: "geo",
+      label: "GEO Record",
+      shortLabel: "GEO",
+      icon: Sparkles,
+      score: geoScore,
+      description: "Generative Engine Optimization readiness across ChatGPT, Claude, Gemini, Perplexity, Google AI Overview and Copilot signals.",
+      record: leadingPlatform
+        ? `Best platform record: ${leadingPlatform.platform} at ${Math.round(Number(leadingPlatform.readinessIndex ?? leadingPlatform.score))}/100 across ${measuredPlatformCount} measured platforms.`
+        : "Platform readiness was not measured for this scan.",
+    },
+  ];
+}
+
+function SearchModeScoresSection({ report }) {
+  const scores = calculateSearchModeScores(report);
+
+  return (
+    <Section title="SEO, AEO and GEO scores">
+      <div className="grid gap-5 lg:grid-cols-3">
+        {scores.map((item) => {
+          const tone = auditTone(item.score);
+          const Icon = item.icon;
+
+          return (
+            <Card key={item.key} className={`relative overflow-hidden border ${tone.border} ${tone.bg} p-6`}>
+              <div className="pointer-events-none absolute right-[-4rem] top-[-5rem] size-44 rounded-full bg-[#90ee9a]/8 blur-3xl" />
+              <div className="relative flex items-start justify-between gap-5">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#8B9C8C]">{item.label}</p>
+                  <div className="mt-4 flex items-end gap-1">
+                    <span className={`text-5xl font-semibold leading-none ${tone.text}`}>
+                      {Number.isFinite(item.score) ? item.score : "N/A"}
+                    </span>
+                    {Number.isFinite(item.score) && <span className="pb-1 text-sm font-semibold text-[#d9e1d8]/55">/100</span>}
+                  </div>
+                </div>
+                <span className={`grid size-12 shrink-0 place-items-center rounded-2xl border ${tone.border} ${tone.bg} ${tone.icon}`}>
+                  <Icon size={24} strokeWidth={1.8} aria-hidden="true" />
+                </span>
+              </div>
+              <div className="relative mt-5">
+                <div className="flex items-center justify-between gap-3">
+                  <span className={`rounded-full border px-3 py-1 text-xs font-bold ${tone.border} ${tone.text}`}>{scoreStatus(item.score)}</span>
+                  <span className="text-xs font-semibold uppercase tracking-[0.14em] text-[#8B9C8C]">{item.shortLabel}</span>
+                </div>
+                {Number.isFinite(item.score) && (
+                  <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-[#8B9C8C]/14">
+                    <div className={`h-full rounded-full bg-gradient-to-r ${tone.bar}`} style={{ width: `${Math.max(4, Math.min(100, item.score))}%` }} />
+                  </div>
+                )}
+                <p className="mt-5 text-sm leading-6 text-[#d9e1d8]/74">{item.description}</p>
+                <p className="mt-4 rounded-2xl border border-white/8 bg-black/20 p-3 text-xs leading-5 text-[#d9e1d8]/62">{item.record}</p>
+              </div>
+            </Card>
+          );
+        })}
+      </div>
+      <p className="mt-5 rounded-2xl border border-[#8B9C8C]/14 bg-white/[.025] p-4 text-sm leading-6 text-[#d9e1d8]/64">
+        These are ScanSiteAI diagnostic scores derived from measured technical, content, entity and platform-readiness signals. They are not official Google, OpenAI, Anthropic, Perplexity or Microsoft ratings.
+      </p>
+    </Section>
+  );
+}
+
 function PlatformScoresSection({ platforms, scannedLabel }) {
   const [evidencePlatform, setEvidencePlatform] = useState(null);
 
@@ -898,6 +1025,8 @@ export function Dashboard({ report, onReset }) {
       </section>
 
       <PlatformScoresSection platforms={report.platformScores} scannedLabel={scannedLabel} />
+
+      <SearchModeScoresSection report={report} />
 
       <EntityConsistencySection analysis={report.siteAudit?.entityAnalysis} />
 
@@ -1987,24 +2116,6 @@ export default function Home() {
         <SiteFooter className="relative z-10 mx-auto mt-8 w-full" />
       </section>
 
-      <a
-        href="https://www.producthunt.com/products/scansite-ai?embed=true&utm_source=badge-featured&utm_medium=badge&utm_campaign=badge-scansite-ai"
-        target="_blank"
-        rel="noopener noreferrer"
-        aria-label="View ScanSite AI on Product Hunt"
-        className="fixed bottom-3 left-3 z-40 block w-[190px] rounded-xl border border-white/10 bg-[#020806]/90 p-1.5 shadow-[0_14px_45px_rgba(0,0,0,.55)] backdrop-blur-md transition hover:-translate-y-0.5 hover:border-[#90ee9a]/35 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#90ee9a] sm:bottom-5 sm:left-5 sm:w-[250px]"
-      >
-        {/* Product Hunt supplies this badge as a remote SVG widget. */}
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1191172&theme=dark&t=1784823675192"
-          alt="ScanSite AI - Make Your Website Visible to AI | Product Hunt"
-          width="250"
-          height="54"
-          loading="lazy"
-          className="block h-auto w-full"
-        />
-      </a>
     </main>
   );
 }

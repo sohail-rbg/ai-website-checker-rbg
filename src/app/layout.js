@@ -2,7 +2,7 @@ import { Geist_Mono, Space_Grotesk } from "next/font/google";
 import Script from "next/script";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
-import { contactEmail, defaultDescription, defaultKeywords, pageTitles, siteName, siteUrl } from "./seo";
+import { contactEmail, defaultDescription, defaultKeywords, pageTitles, siteName, siteUrl, socialLinks } from "./seo";
 import siteSchema from "../lib/siteSchema.cjs";
 import "./globals.css";
 
@@ -79,7 +79,13 @@ export const metadata = {
 };
 
 export default function RootLayout({ children }) {
-  const jsonLd = buildSiteJsonLd({ siteUrl, siteName, contactEmail, defaultDescription });
+  const jsonLd = buildSiteJsonLd({
+    siteUrl,
+    siteName,
+    contactEmail,
+    defaultDescription,
+    sameAs: socialLinks.map((link) => link.href),
+  });
 
   return (
     <html

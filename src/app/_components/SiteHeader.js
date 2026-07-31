@@ -8,9 +8,9 @@ import styles from "../page.module.css";
 
 const headerLinks = [
   ["About", "/about"],
-  ["Features", "/#features"],
-  ["FAQ's", "/#faq-preview"],
-  ["Testimonial", "/testimonials"],
+  ["Resources", "/resources"],
+  ["Blog", "/blog"],
+  ["Testimonials", "/testimonials"],
 ];
 
 export default function SiteHeader({ className = "" }) {
@@ -29,9 +29,9 @@ export default function SiteHeader({ className = "" }) {
       </Link>
 
       <div className={styles.headerActions}>
-        <Link href="/coming-soon" className={styles.loginButton} aria-label="Login coming soon">
+        <span className={styles.loginButton} aria-label="Login unavailable" title="Login unavailable">
           <CircleUserRound size={22} strokeWidth={1.8} aria-hidden="true" />
-        </Link>
+        </span>
         <Link href="/book-demo" className={styles.demoButton}>
           Book a demo
         </Link>
@@ -54,10 +54,6 @@ export default function SiteHeader({ className = "" }) {
           ))}
         </nav>
         <div className={styles.mobileMenuActions}>
-          <Link href="/coming-soon" onClick={() => setIsOpen(false)}>
-            <CircleUserRound size={19} strokeWidth={1.8} aria-hidden="true" />
-            Login
-          </Link>
           <Link href="/book-demo" onClick={() => setIsOpen(false)}>Book a demo</Link>
         </div>
       </div>

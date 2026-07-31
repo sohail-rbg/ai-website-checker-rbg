@@ -1,6 +1,16 @@
 export const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://scansiteai.com";
 export const siteName = "ScanSiteAI";
 export const contactEmail = "info@scansiteai.com";
+export const socialLinks = Object.freeze([
+  {
+    label: "Instagram",
+    href: "https://www.instagram.com/scansiteai",
+  },
+  {
+    label: "LinkedIn",
+    href: "https://www.linkedin.com/company/scansite-ai/",
+  },
+]);
 export const pageTitles = Object.freeze({
   home: "AI Website Readiness Checker | ScanSiteAI",
   about: "How ScanSiteAI Helps Websites Improve AI Readiness",
