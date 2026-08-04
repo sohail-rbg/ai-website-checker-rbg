@@ -9,6 +9,11 @@ import { checkRateLimit, clientKey } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 
+const SMTP_CONNECTION_TIMEOUT_MS = 30_000;
+const SMTP_GREETING_TIMEOUT_MS = 30_000;
+const SMTP_SOCKET_TIMEOUT_MS = 45_000;
+const EMAIL_SEND_TIMEOUT_MS = 50_000;
+
 function validateEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || "").trim());
 }
@@ -25,9 +30,9 @@ function createTransporter() {
     port: Number(SMTP_PORT),
     secure: Number(SMTP_PORT) === 465,
     auth: { user: SMTP_USER, pass: SMTP_PASS },
-    connectionTimeout: 8000,
-    greetingTimeout: 8000,
-    socketTimeout: 10000,
+    connectionTimeout: SMTP_CONNECTION_TIMEOUT_MS,
+    greetingTimeout: SMTP_GREETING_TIMEOUT_MS,
+    socketTimeout: SMTP_SOCKET_TIMEOUT_MS,
   });
 }
 
@@ -37,17 +42,37 @@ function timeoutAfter(ms, message) {
   });
 }
 
+function isRetryableConnectionError(error) {
+  return error?.command === "CONN" && [
+    "ETIMEDOUT",
+    "ECONNRESET",
+    "ECONNREFUSED",
+    "EHOSTUNREACH",
+    "ENETUNREACH",
+    "EAI_AGAIN",
+  ].includes(error?.code);
+}
+
 async function trySendMail(transporter, mailOptions, label) {
-  try {
-    await Promise.race([
-      transporter.sendMail(mailOptions),
-      timeoutAfter(12000, `${label} email timed out. Check SMTP settings.`),
-    ]);
-    return { ok: true };
-  } catch (error) {
-    console.error(`Email delivery failed for ${label}`, error);
-    return { ok: false, error: error?.message || `Could not send ${label} email.` };
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    try {
+      await Promise.race([
+        transporter.sendMail(mailOptions),
+        timeoutAfter(EMAIL_SEND_TIMEOUT_MS, `${label} email timed out. Check SMTP settings.`),
+      ]);
+      return { ok: true };
+    } catch (error) {
+      if (attempt === 1 && isRetryableConnectionError(error)) {
+        console.warn(`SMTP connection failed for ${label}; retrying once.`, error);
+        continue;
+      }
+
+      console.error(`Email delivery failed for ${label}`, error);
+      return { ok: false, error: error?.message || `Could not send ${label} email.` };
+    }
   }
+
+  return { ok: false, error: `Could not send ${label} email.` };
 }
 
 function escapeHtml(value) {

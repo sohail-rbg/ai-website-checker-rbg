@@ -5,6 +5,10 @@ import DemoRequest from "@/models/DemoRequest";
 
 export const runtime = "nodejs";
 
+const SMTP_CONNECTION_TIMEOUT_MS = 30_000;
+const SMTP_GREETING_TIMEOUT_MS = 30_000;
+const SMTP_SOCKET_TIMEOUT_MS = 45_000;
+
 function validEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || "").trim());
 }
@@ -26,9 +30,9 @@ function createTransporter() {
     port: Number(SMTP_PORT),
     secure: Number(SMTP_PORT) === 465,
     auth: { user: SMTP_USER, pass: SMTP_PASS },
-    connectionTimeout: 8000,
-    greetingTimeout: 8000,
-    socketTimeout: 10000,
+    connectionTimeout: SMTP_CONNECTION_TIMEOUT_MS,
+    greetingTimeout: SMTP_GREETING_TIMEOUT_MS,
+    socketTimeout: SMTP_SOCKET_TIMEOUT_MS,
   });
 }
 
